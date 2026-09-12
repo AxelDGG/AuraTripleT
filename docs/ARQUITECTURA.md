@@ -1,4 +1,7 @@
-# Banorte Investments · Norte AI — Reto Banorte 🏦⚡
+# Arquitectura técnica de la base · Norte AI 🏦⚡
+
+> Documento técnico de la app base. La visión del proyecto, las reglas del equipo, la estructura del
+> monorepo y el plan de los retos MLH están en el [README raíz](../README.md).
 
 **Agentes de IA que generan interfaces en tiempo real** para servicios financieros, dentro de un
 dashboard de inversión de nivel producto. Construido con **MCP** (Model Context Protocol) y **Groq**.
@@ -27,14 +30,14 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 
 ```
 ┌──────────────────┐  GET /api/dashboard   ┌──────────────┐
-│  Frontend (vanilla│ ◄──────────────────── │   Express    │
-│  JS, sin build)   │  POST /api/chat (SSE) │   + Agente   │ ◄──── tool calling ────► Groq LLM
-│  dashboard + panel│ ◄──────────────────── │   (Node.js)  │
-│  generativo       │                       └──────┬───────┘
-└──────────────────┘                              │ MCP (stdio)
+│  @norte/web      │ ◄──────────────────── │  @norte/api  │
+│  (vanilla JS,    │  POST /api/chat (SSE) │  Express     │ ◄──── tool calling ────► Groq LLM
+│  sin build)      │ ◄──────────────────── │  + Agente    │
+│  dashboard+panel │                       └──────┬───────┘
+└──────────────────┘                              │ MCP (stdio, subproceso)
                                                   ▼
                                        ┌──────────────────────┐
-                                       │ Servidor MCP          │
+                                       │ @norte/mcp-server     │
                                        │ banorte-banking       │
                                        │ 14 herramientas       │
                                        │ (datos mock)          │
@@ -48,6 +51,9 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
    termina con una **especificación de UI en JSON** que el renderer convierte en DOM seguro.
 3. Todo el DOM generado se construye con `createElement`/`textContent` — nunca `innerHTML` con
    contenido del modelo.
+4. El cliente MCP (`apps/api/src/mcp-client.js`) lanza el servidor como subproceso usando la ruta que
+   exporta el paquete `@norte/mcp-server` (`SERVER_PATH`), así la API no depende de la estructura de
+   carpetas del servidor.
 
 ### Herramientas MCP
 
@@ -71,22 +77,26 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 
 ## Cómo correrlo
 
+Desde la raíz del monorepo:
+
 ```bash
-npm install
+npm install            # instala los tres workspaces y enlaza @norte/*
 cp .env.example .env   # y pon tu GROQ_API_KEY
-npm start              # http://localhost:3040
+npm run dev            # http://localhost:3040
 ```
+
+El `.env` vive en la raíz del repo; `@norte/api` lo carga desde ahí sin importar el cwd.
 
 ## App móvil (iOS / Android)
 
-En [`../banorte-mobile`](../banorte-mobile) hay una versión **React Native (Expo)** con el mismo estilo y
-funciones que consume este mismo backend (`/api/dashboard`, `/api/simulate-credit` y el stream SSE de
-`/api/chat`). El servidor ya responde con CORS para permitirlo. Instrucciones en su README.
+Pendiente: vivirá en [`apps/mobile`](../apps/mobile) como **React Native (Expo)** con widget de Android,
+consumiendo este mismo backend (`/api/dashboard`, `/api/simulate-credit` y el stream SSE de
+`/api/chat`). El servidor ya responde con CORS para permitirlo. Ver README raíz, sección "Mobile".
 
 ## Pruebas
 
 ```bash
-npm test
+npm test               # corre los tests de todos los workspaces
 ```
 
 33 pruebas: 29 unitarias (herramientas bancarias, portafolio, series de rendimiento, compuerta de
@@ -96,20 +106,23 @@ de extremo a extremo (cliente real → servidor stdio → herramientas).
 ## Estructura
 
 ```
-server/
-  index.js            Express: /api/dashboard, /api/simulate-credit, /api/chat (SSE), seguridad
-  agent.js            Loop de tool-calling con Groq, reintentos, timeout, reparación de JSON
-  mcp/server.js       Servidor MCP (stdio) con 14 herramientas validadas con zod
-  mcp/client.js       Cliente MCP (subproceso) con reconexión
-  mcp/tools.js        Lógica pura de las herramientas
-  data/mockData.js    Cliente, cuentas, movimientos, inversiones, divisas, créditos
-  data/marketData.js  Posiciones, watchlist y generador determinista de series
-public/
-  index.html          Dashboard (sidebar, topbar, vistas, panel de IA)
-  css/                tokens · layout · components · chart · ai-panel
-  js/                 i18n · icons · api · chart · dashboard · views · ai-panel · modals · app
-  renderer.js         Renderer de la UI generativa (tema oscuro)
-tests/                tools · agent · mcp
+apps/api/                      @norte/api
+  src/index.js                 Express: /api/dashboard, /api/simulate-credit, /api/chat (SSE), seguridad
+  src/agent.js                 Loop de tool-calling con Groq, reintentos, timeout, reparación de JSON
+  src/mcp-client.js            Cliente MCP (subproceso) con reconexión
+  tests/                       agent · mcp (integración e2e)
+apps/web/public/               @norte/web
+  index.html                   Dashboard (sidebar, topbar, vistas, panel de IA)
+  css/                         tokens · layout · components · chart · ai-panel
+  js/                          i18n · icons · api · voice · chart · dashboard · views · ai-panel · modals · app
+  renderer.js                  Renderer de la UI generativa (tema oscuro)
+packages/mcp-server/           @norte/mcp-server
+  src/index.js                 Exporta SERVER_PATH
+  src/server.js                Servidor MCP (stdio) con 14 herramientas validadas con zod
+  src/tools.js                 Lógica pura de las herramientas
+  src/data/mockData.js         Cliente, cuentas, movimientos, inversiones, divisas, créditos
+  src/data/marketData.js       Posiciones, watchlist y generador determinista de series
+  tests/                       tools
 ```
 
 ## Datos de prueba

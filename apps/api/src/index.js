@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import dotenv from 'dotenv';
 import { runAgent } from './agent.js';
-import { getMcpClient, callMcpTool } from './mcp/client.js';
+import { getMcpClient, callMcpTool } from './mcp-client.js';
 
-dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env') });
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -39,7 +39,7 @@ app.use((_req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(path.join(__dirname, '..', '..', 'web', 'public')));
 
 // Rate limiting simple en memoria por IP (ventana deslizante de un minuto).
 const RATE_LIMIT_WINDOW_MS = 60_000;

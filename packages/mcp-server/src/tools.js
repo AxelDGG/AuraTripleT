@@ -10,7 +10,7 @@ import {
   exchangeRates,
   creditProducts,
   beneficiaries,
-} from '../data/mockData.js';
+} from './data/mockData.js';
 import {
   holdings,
   watchlist,
@@ -18,7 +18,7 @@ import {
   PERFORMANCE_RANGES,
   buildPerformanceSeries,
   buildSparkline,
-} from '../data/marketData.js';
+} from './data/marketData.js';
 
 export function createBankState() {
   return {

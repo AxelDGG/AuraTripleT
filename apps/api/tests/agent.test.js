@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseUiJson, extractFailedGeneration } from '../server/agent.js';
+import { parseUiJson, extractFailedGeneration } from '../src/agent.js';
 
 test('parseUiJson acepta JSON limpio', () => {
   const parsed = parseUiJson('{"message":"hola","ui":[{"type":"alert","text":"x"}]}');

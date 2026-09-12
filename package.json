@@ -1,0 +1,24 @@
+{
+  "name": "norte-ai",
+  "private": true,
+  "version": "1.0.0",
+  "description": "HackMTY x Banorte - Norte AI: interfaces que la IA construye en tiempo real (LLM + MCP + A2UI)",
+  "type": "module",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/mcp-server"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @norte/api",
+    "start": "npm run start -w @norte/api",
+    "test": "npm test --workspaces --if-present",
+    "mcp": "node packages/mcp-server/src/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "overrides": {
+    "qs": ">=6.15.4"
+  }
+}

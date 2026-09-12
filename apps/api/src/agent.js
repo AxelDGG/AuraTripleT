@@ -1,7 +1,7 @@
 // Agente generativo: orquesta Groq (LLM) + herramientas MCP y produce
 // especificaciones de UI en JSON que el frontend renderiza en tiempo real.
 
-import { listToolsForLlm, callMcpTool } from './mcp/client.js';
+import { listToolsForLlm, callMcpTool } from './mcp-client.js';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_TOOL_ROUNDS = 6;

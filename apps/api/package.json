@@ -1,0 +1,22 @@
+{
+  "name": "@norte/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API de Norte AI: Express + agente (Groq) + cliente MCP con streaming SSE",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "test": "node --test tests/agent.test.js tests/mcp.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@norte/mcp-server": "*",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
+  }
+}

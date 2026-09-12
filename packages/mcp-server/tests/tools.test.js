@@ -15,8 +15,8 @@ import {
   getPortfolio,
   getWatchlist,
   getPortfolioPerformance,
-} from '../server/mcp/tools.js';
-import { accounts as seedAccounts } from '../server/data/mockData.js';
+} from '../src/tools.js';
+import { accounts as seedAccounts } from '../src/data/mockData.js';
 
 test('getCustomerProfile devuelve el perfil del cliente', () => {
   const profile = getCustomerProfile();

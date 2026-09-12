@@ -2,7 +2,7 @@
 // descubre herramientas y ejecuta llamadas de extremo a extremo.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { getMcpClient, listToolsForLlm, callMcpTool } from '../server/mcp/client.js';
+import { getMcpClient, listToolsForLlm, callMcpTool } from '../src/mcp-client.js';
 
 after(async () => {
   const client = await getMcpClient();

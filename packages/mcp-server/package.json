@@ -1,0 +1,23 @@
+{
+  "name": "@norte/mcp-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor MCP banorte-banking: 14 herramientas bancarias validadas con zod (stdio)",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./server": "./src/server.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/tools.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.1"
+  }
+}

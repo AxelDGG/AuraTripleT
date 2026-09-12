@@ -1,19 +1,16 @@
 // Cliente MCP: lanza el servidor banorte-banking como subproceso (stdio),
 // descubre sus herramientas y las expone en el formato de tool-calling de Groq/OpenAI.
 
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { SERVER_PATH } from '@norte/mcp-server';
 
 let clientPromise = null;
 
 async function connect() {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [path.join(__dirname, 'server.js')],
+    args: [SERVER_PATH],
     stderr: 'inherit',
   });
   const client = new Client({ name: 'banorte-agent', version: '1.0.0' });

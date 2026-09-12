@@ -1,0 +1,7 @@
+{
+  "name": "@norte/web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UI web de Norte AI (vanilla JS, sin build). La sirve @norte/api desde public/",
+  "type": "module"
+}
