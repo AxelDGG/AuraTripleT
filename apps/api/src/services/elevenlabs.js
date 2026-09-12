@@ -40,8 +40,7 @@ export async function speak(text) {
     headers: { 'xi-api-key': key(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      model_id: 'eleven_turbo_v2_5',
     }),
   });
   if (!res.ok) {
