@@ -16,6 +16,7 @@ export function corsForClients(req, res, next) {
 const CONTENT_SECURITY_POLICY =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
   "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; " +
+  "media-src 'self' blob:; " +
   "object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
 
 export function securityHeaders(_req, res, next) {

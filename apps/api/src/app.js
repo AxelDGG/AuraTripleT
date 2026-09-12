@@ -13,6 +13,7 @@ import { healthRouter } from './routes/health.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { creditRouter } from './routes/credit.js';
 import { createChatRouter } from './routes/chat.js';
+import { voiceRouter } from './routes/voice.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const WEB_PUBLIC_DIR = path.join(__dirname, '..', '..', 'web', 'public');
@@ -37,6 +38,7 @@ export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR } = {})
   app.use(dashboardRouter);
   app.use(creditRouter);
   app.use(createChatRouter({ runAgent: agent }));
+  app.use(voiceRouter);
 
   app.use(errorHandler);
   return app;
