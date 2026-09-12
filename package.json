@@ -14,7 +14,10 @@
     "dev": "npm run dev -w @norte/api",
     "start": "npm run start -w @norte/api",
     "test": "npm test --workspaces --if-present",
-    "mcp": "node packages/mcp-server/src/server.js"
+    "mcp": "node packages/mcp-server/src/server.js",
+    "db:setup": "node scripts/db-setup.js",
+    "db:build-seed": "npm run db:build-seed -w @norte/mcp-server",
+    "db:verify": "node scripts/db-verify.js"
   },
   "engines": {
     "node": ">=18"

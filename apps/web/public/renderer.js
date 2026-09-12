@@ -12,7 +12,13 @@
     vivienda: '🏢', ahorro: '🐷', transferencias: '↔️', 'pagos tdc': '💳',
   };
 
-  const BANORTE_PALETTE = ['#f2a9d3', '#8ec5ff', '#79e0a3', '#f5c36b', '#c9a8ff', '#ff8c9f', '#6ee7de', '#ffb88a', '#b5b5c8', '#9ad0f5', '#e6c27a', '#8f8fb8'];
+  // Paleta de gráficas: el rojo Banorte manda y el resto son acentos neutros
+  // que se leen bien sobre blanco sin competir con la marca.
+  const BANORTE_PALETTE = ['#eb0029', '#1b1b20', '#e2758a', '#6e6e7a', '#9e0018', '#b8770a', '#1f5fbf', '#0f8f4d', '#c8001f', '#a8a8b4', '#7a0012', '#d4a0a8'];
+  const AXIS_TEXT = '#6e6e7a';
+  const GRID_LINE = 'rgba(20, 20, 28, 0.08)';
+  // Altura del mini-gráfico estático de las miniaturas, en unidades del viewBox.
+  const MINI_H = 60;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -95,13 +101,14 @@
         backgroundColor: isCircular
           ? BANORTE_PALETTE
           : BANORTE_PALETTE[i % BANORTE_PALETTE.length] + (type === 'line' ? '22' : 'D9'),
-        borderColor: isCircular ? '#0f0d11' : BANORTE_PALETTE[i % BANORTE_PALETTE.length],
+        borderColor: isCircular ? '#ffffff' : BANORTE_PALETTE[i % BANORTE_PALETTE.length],
         borderWidth: 2,
         borderRadius: type === 'bar' ? 7 : 0,
         tension: 0.35,
         fill: type === 'line',
       }));
       requestAnimationFrame(() => {
+        if (!canvas.isConnected) return;
         new Chart(canvas, {
           type,
           data: { labels: c.labels ?? [], datasets },
@@ -112,7 +119,7 @@
               legend: {
                 display: isCircular || datasets.length > 1,
                 position: 'bottom',
-                labels: { font: { family: 'Manrope', size: 12 }, color: '#d9d0d6', boxWidth: 14, padding: 14 },
+                labels: { font: { family: 'Manrope', size: 12 }, color: AXIS_TEXT, boxWidth: 14, padding: 14 },
               },
               tooltip: {
                 callbacks: {
@@ -121,8 +128,8 @@
               },
             },
             scales: isCircular ? {} : {
-              y: { ticks: { font: { family: 'Manrope' }, color: '#a79ea6', callback: (v) => fmtMoney(v) }, grid: { color: 'rgba(255,255,255,0.06)' } },
-              x: { ticks: { font: { family: 'Manrope' }, color: '#a79ea6' }, grid: { display: false } },
+              y: { ticks: { font: { family: 'Manrope' }, color: AXIS_TEXT, callback: (v) => fmtMoney(v) }, grid: { color: GRID_LINE } },
+              x: { ticks: { font: { family: 'Manrope' }, color: AXIS_TEXT }, grid: { display: false } },
             },
           },
         });
@@ -259,22 +266,59 @@
     return card;
   };
 
-  window.renderGeneratedUi = function (container, components) {
+  // Gráfica estática para las miniaturas del carrusel: dibuja las barras con la
+  // forma real de los datos, en SVG. Instanciar Chart.js por tarjeta costaría un
+  // canvas y una animación por cada una del historial, y a escala 0.32 el
+  // detalle no se lee de todos modos.
+  function miniChart(c) {
+    const card = el('div', 'card gen');
+    if (c.title) card.appendChild(el('h3', null, c.title));
+    const values = (c.datasets?.[0]?.data ?? []).map(Number).filter(Number.isFinite).slice(0, 12);
+    const max = Math.max(1, ...values.map(Math.abs));
+    const gap = 6;
+    const barW = 22;
+    const width = Math.max(1, values.length) * (barW + gap);
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${MINI_H}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', String(MINI_H * 2));
+    values.forEach((value, i) => {
+      const height = Math.max(3, (Math.abs(value) / max) * (MINI_H - 4));
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(i * (barW + gap)));
+      rect.setAttribute('y', String(MINI_H - height));
+      rect.setAttribute('width', String(barW));
+      rect.setAttribute('height', String(height));
+      rect.setAttribute('rx', '3');
+      rect.setAttribute('fill', BANORTE_PALETTE[i % BANORTE_PALETTE.length]);
+      svg.appendChild(rect);
+    });
+    card.appendChild(svg);
+    return card;
+  }
+
+  // `preview: true` produce la versión ligera y sin interacción que va dentro de
+  // las tarjetas del carrusel.
+  window.renderGeneratedUi = function (container, components, { preview = false } = {}) {
     container.replaceChildren();
     let delay = 0;
     for (const comp of components ?? []) {
-      const renderFn = renderers[comp?.type];
+      const renderFn = preview && comp?.type === 'chart' ? miniChart : renderers[comp?.type];
       if (!renderFn) continue;
       try {
         const node = renderFn(comp);
-        node.style.animationDelay = `${delay}ms`;
-        delay += 90;
+        if (!preview) {
+          node.style.animationDelay = `${delay}ms`;
+          delay += 90;
+        }
         container.appendChild(node);
       } catch (err) {
         console.error('Error renderizando componente', comp?.type, err);
       }
     }
-    if (!container.children.length) {
+    if (!container.children.length && !preview) {
       container.appendChild(renderers.alert({
         level: 'warning',
         text: 'El agente respondió pero no generó componentes visuales.',

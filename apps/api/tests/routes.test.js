@@ -5,21 +5,24 @@ import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import { getMcpClient } from '../src/mcp-client.js';
 import { createRateLimiter } from '../src/middleware/rate-limit.js';
+import { createMemoryHistoryStore } from '../src/history-store.js';
 
 let server;
 let baseUrl;
 let lastAgentInput;
+let historyStore;
 
 async function fakeAgent({ userMessage, history, emit }) {
   lastAgentInput = { userMessage, history };
   emit({ type: 'status', text: 'pensando' });
-  emit({ type: 'ui', message: 'ok', ui: [{ type: 'text', markdown: userMessage }] });
+  emit({ type: 'ui', message: 'ok', title: 'Prueba', folder: 'gastos', ui: [{ type: 'text', markdown: userMessage }] });
   return { message: 'ok', ui: [] };
 }
 
 before(async () => {
   process.env.GROQ_API_KEY = process.env.GROQ_API_KEY || 'test-key';
-  const app = createApp({ agent: fakeAgent });
+  historyStore = createMemoryHistoryStore();
+  const app = createApp({ agent: fakeAgent, historyStore });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
   });
@@ -62,7 +65,7 @@ test('GET / sirve la UI web de @norte/web', async () => {
   const res = await fetch(`${baseUrl}/`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/html/);
-  assert.match(await res.text(), /Norte AI/);
+  assert.match(await res.text(), /HISTORIAL DE VISUALIZACIÓN FINANCIERA INTELIGENTE/);
 });
 
 test('GET /api/dashboard agrega las 12 llamadas MCP en un solo payload', async () => {
@@ -91,6 +94,15 @@ test('POST /api/simulate-credit valida la entrada y delega en la tool MCP', asyn
   assert.match(unknownBody.error, /Producto no encontrado/);
 });
 
+test('GET /api/customer resuelve el perfil con una sola llamada MCP', async () => {
+  const res = await fetch(`${baseUrl}/api/customer`);
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.ok, true);
+  assert.ok(body.data.name);
+  assert.ok(body.data.segment);
+});
+
 test('POST /api/chat rechaza mensajes vacíos o demasiado largos', async () => {
   assert.equal((await postJson('/api/chat', {})).status, 400);
   assert.equal((await postJson('/api/chat', { message: '   ' })).status, 400);
@@ -111,13 +123,47 @@ test('POST /api/chat transmite los eventos del agente por SSE y cierra con done'
   assert.match(res.headers.get('content-type'), /text\/event-stream/);
 
   const events = sseEvents(await res.text());
-  assert.deepEqual(events.map((e) => e.type), ['status', 'ui', 'done']);
+  assert.deepEqual(events.map((e) => e.type), ['status', 'ui', 'history', 'done']);
   assert.equal(events[1].ui[0].markdown, 'hola');
   assert.equal(lastAgentInput.userMessage, 'hola');
   assert.deepEqual(lastAgentInput.history, [
     { role: 'user', content: 'antes' },
     { role: 'assistant', content: 'respuesta' },
   ]);
+});
+
+test('la interfaz generada se archiva con la carpeta que eligió la IA', async () => {
+  await postJson('/api/chat', { message: '¿cuánto gasté?' });
+  const [ultima] = await historyStore.list({ limit: 1 });
+  assert.equal(ultima.folder, 'gastos');
+  assert.equal(ultima.title, 'Prueba');
+  assert.equal(ultima.prompt, '¿cuánto gasté?');
+  assert.equal(ultima.spec.ui[0].markdown, '¿cuánto gasté?');
+
+  const res = await fetch(`${baseUrl}/api/history?folder=gastos`);
+  assert.ok((await res.json()).entries.some((e) => e.prompt === '¿cuánto gasté?'));
+});
+
+test('el aviso de error del agente no ensucia el historial', async () => {
+  const store = createMemoryHistoryStore();
+  const app = createApp({
+    agent: async ({ emit }) => {
+      emit({ type: 'ui', message: 'no pude', title: 'Sin respuesta del agente', folder: 'otros', ui: [], fallback: true });
+    },
+    historyStore: store,
+  });
+  const s = await new Promise((resolve) => {
+    const srv = app.listen(0, '127.0.0.1', () => resolve(srv));
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${s.address().port}/api/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'hola' }),
+    });
+    assert.deepEqual(sseEvents(await res.text()).map((e) => e.type), ['ui', 'done']);
+    assert.equal((await store.list()).length, 0);
+  } finally {
+    await new Promise((resolve) => s.close(resolve));
+  }
 });
 
 test('POST /api/chat convierte un fallo del agente en un evento error sin tumbar el stream', async () => {

@@ -7,17 +7,20 @@
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
-    "./server": "./src/server.js"
+    "./server": "./src/server.js",
+    "./pg-options": "./src/repositories/pg-options.js"
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "db:build-seed": "node scripts/build-seed.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
+    "pg": "^8.13.1",
     "zod": "^3.24.1"
   }
 }

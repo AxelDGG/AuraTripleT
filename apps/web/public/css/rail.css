@@ -1,0 +1,183 @@
+/* ===== Riel derecho: buscador y carpetas desplegables ===== */
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 16px;
+  background: linear-gradient(180deg, var(--rail) 0%, var(--rail-2) 100%);
+  border-left: 1px solid rgba(235, 0, 41, 0.18);
+}
+
+/* ---------- Buscador ---------- */
+.rail-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 6px 0 12px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--red);
+  color: #fff;
+  box-shadow: var(--shadow-red);
+  transition: box-shadow var(--dur) var(--ease-out);
+}
+.rail-search:focus-within { box-shadow: 0 0 0 4px rgba(235, 0, 41, 0.20); }
+.rs-icon { flex: none; color: #fff; }
+.rs-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.rail-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  outline: none;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+}
+.rail-search input::placeholder { color: rgba(255, 255, 255, 0.82); }
+.rail-search input::-webkit-search-cancel-button { display: none; }
+.rs-clear {
+  width: 24px; height: 24px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  transition: background var(--dur-fast);
+}
+.rs-clear:hover { background: rgba(255, 255, 255, 0.22); }
+.rs-clear svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+
+/* ---------- Lista de carpetas ---------- */
+.folders {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 2px;
+}
+
+.folder {
+  border-radius: var(--r-md);
+  animation: rise var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 65ms);
+}
+
+.folder-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, var(--red) 0%, var(--red-700) 100%);
+  color: #fff;
+  box-shadow: var(--shadow-red);
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur) var(--ease-out), border-radius var(--dur) var(--ease-out);
+}
+.folder-head:hover { transform: translateY(-2px); }
+.folder-head:active { transform: translateY(0); }
+.folder.is-open .folder-head { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+
+.folder-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.folder-count {
+  flex: none;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.24);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition: transform var(--dur) var(--ease-spring);
+}
+.folder-count.is-bumped { transform: scale(1.35); }
+.folder-chevron { flex: none; display: grid; place-items: center; transition: transform var(--dur) var(--ease-spring); }
+.folder-chevron svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.folder.is-open .folder-chevron { transform: rotate(180deg); }
+
+/* ---------- Cajón desplegable ---------- */
+/* La altura se anima con max-height calculada en JS (scrollHeight): así el
+   deslizamiento es exacto sin importar cuántas entradas tenga la carpeta. */
+.folder-drawer {
+  max-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 var(--r-md) var(--r-md);
+  background: rgba(255, 255, 255, 0.62);
+  transition: max-height var(--dur) var(--ease-out);
+}
+.folder.is-open .folder-drawer { background: rgba(255, 255, 255, 0.86); }
+
+.folder-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.folder-item:hover { background: var(--red-tint); }
+.folder-item.is-active { background: var(--red-tint-2); }
+
+/* Entrada y salida en cascada: cada entrada se desliza desde la derecha. */
+.folder.is-open .folder-item {
+  animation: slideLeft var(--dur) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+.folder.is-closing .folder-item {
+  animation: slideLeft var(--dur-fast) var(--ease-out) reverse both;
+  animation-delay: 0ms;
+}
+
+.fi-bar { width: 3px; align-self: stretch; border-radius: 2px; background: var(--red); flex: none; opacity: 0.55; }
+.fi-main { flex: 1; min-width: 0; }
+.fi-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.fi-date { margin-top: 2px; font-size: 10.5px; color: var(--muted); }
+
+.folder-empty {
+  padding: 12px 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Marca de resultado de búsqueda */
+.folder.is-filtered .folder-head { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), var(--shadow-red); }
+.folder.is-muted { opacity: 0.45; }
+.folder.is-muted .folder-head { box-shadow: none; }

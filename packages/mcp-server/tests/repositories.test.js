@@ -4,10 +4,24 @@ import { createRepository, availableDataSources } from '../src/repositories/inde
 import { createMemoryRepository } from '../src/repositories/memory.js';
 
 test('createRepository usa memory por defecto y rechaza fuentes desconocidas', () => {
-  assert.deepEqual(availableDataSources(), ['memory']);
-  assert.equal(createRepository().kind, 'memory');
+  assert.deepEqual(availableDataSources(), ['memory', 'tiger']);
+  assert.equal(createRepository({ kind: undefined }).kind, 'memory');
   assert.equal(createRepository({ kind: 'memory' }).kind, 'memory');
   assert.throws(() => createRepository({ kind: 'oracle' }), /BANK_DATA_SOURCE desconocido/);
+});
+
+test('pedir tiger sin DATABASE_URL avisa y cae a memoria en vez de tumbar la demo', () => {
+  const avisos = [];
+  const repo = createRepository({ kind: 'tiger', connectionString: '', logger: (msg) => avisos.push(msg) });
+  assert.equal(repo.kind, 'memory');
+  assert.match(avisos[0], /falta DATABASE_URL/);
+});
+
+test('con DATABASE_URL, tiger construye el repositorio sin conectarse todavía', () => {
+  // El Pool de pg es perezoso: crear el repositorio no abre conexión, así que
+  // esto se puede probar sin una base real.
+  const repo = createRepository({ kind: 'tiger', connectionString: 'postgres://u:p@ejemplo:5432/db' });
+  assert.equal(repo.kind, 'tiger');
 });
 
 test('el repositorio en memoria devuelve copias, no referencias a su estado', async () => {

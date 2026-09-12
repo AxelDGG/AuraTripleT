@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import {
   COMPONENT_TYPES,
   COMPONENT_CATALOG,
+  DEFAULT_FOLDER,
+  FOLDER_IDS,
   componentsPromptSection,
+  foldersPromptSection,
   normalizeComponent,
+  normalizeFolder,
   normalizeUiSpec,
   SPEC_VERSION,
 } from '../src/index.js';
@@ -38,9 +42,10 @@ test('normalizeUiSpec conserva message y ui válidos', () => {
 });
 
 test('normalizeUiSpec rellena message y ui faltantes o con tipo incorrecto', () => {
-  assert.deepEqual(normalizeUiSpec({ message: 42 }), { message: '', ui: [] });
-  assert.deepEqual(normalizeUiSpec({ ui: 'nope' }), { message: '', ui: [] });
-  assert.deepEqual(normalizeUiSpec(null), { message: '', ui: [] });
+  const vacio = { message: '', ui: [], folder: DEFAULT_FOLDER, title: 'Visualización' };
+  assert.deepEqual(normalizeUiSpec({ message: 42 }), vacio);
+  assert.deepEqual(normalizeUiSpec({ ui: 'nope' }), vacio);
+  assert.deepEqual(normalizeUiSpec(null), vacio);
 });
 
 test('normalizeUiSpec descarta componentes desconocidos o que no son objetos', () => {
@@ -132,4 +137,51 @@ test('los campos numéricos no aceptan booleanos ni null (caen a 0)', () => {
   const txs = normalizeComponent({ type: 'transaction_list', items: [{ description: 'a', amount: true }, { description: 'b', amount: null }] });
   assert.deepEqual(txs.items.map((t) => t.amount), [0, 0]);
   assert.equal(normalizeComponent({ type: 'progress', value: '42.5' }).value, 42.5);
+});
+
+test('las carpetas del historial son un catálogo cerrado de cinco', () => {
+  assert.deepEqual(FOLDER_IDS, ['transacciones', 'promociones', 'movimientos', 'gastos', 'otros']);
+  assert.equal(DEFAULT_FOLDER, 'otros');
+});
+
+test('normalizeFolder tolera mayúsculas, acentos, alias y valores ausentes', () => {
+  assert.equal(normalizeFolder('GASTOS'), 'gastos');
+  assert.equal(normalizeFolder('  Movimientos  '), 'movimientos');
+  assert.equal(normalizeFolder('transferencias'), 'transacciones');
+  assert.equal(normalizeFolder('crédito'), 'promociones');
+  assert.equal(normalizeFolder('estado de cuenta'), 'movimientos');
+  assert.equal(normalizeFolder('carpeta inventada'), 'otros');
+  assert.equal(normalizeFolder(undefined), 'otros');
+  assert.equal(normalizeFolder(null), 'otros');
+});
+
+test('la sección de carpetas del prompt lista los cinco ids', () => {
+  const section = foldersPromptSection();
+  for (const id of FOLDER_IDS) assert.ok(section.includes(`"${id}"`));
+});
+
+test('normalizeUiSpec toma la carpeta del modelo y la normaliza', () => {
+  const spec = normalizeUiSpec({ message: 'm', folder: 'TRANSFERENCIAS', ui: [] });
+  assert.equal(spec.folder, 'transacciones');
+});
+
+test('el título del historial: el del modelo gana, luego el header, luego el mensaje', () => {
+  const explicito = normalizeUiSpec({ message: 'm', title: 'Mi corte del mes', ui: [{ type: 'header', title: 'Otro' }] });
+  assert.equal(explicito.title, 'Mi corte del mes');
+
+  const desdeHeader = normalizeUiSpec({ message: 'Aquí están tus gastos.', ui: [{ type: 'header', title: 'Gastos de agosto' }] });
+  assert.equal(desdeHeader.title, 'Gastos de agosto');
+
+  const desdeComponente = normalizeUiSpec({ message: 'm', ui: [{ type: 'chart', title: 'Gasto por categoría' }] });
+  assert.equal(desdeComponente.title, 'Gasto por categoría');
+
+  const desdeMensaje = normalizeUiSpec({ message: 'Tu saldo es $48,250.75. Creció 12% este mes.', ui: [] });
+  assert.equal(desdeMensaje.title, 'Tu saldo es $48,250.75.');
+});
+
+test('el título se recorta a 80 caracteres con elipsis', () => {
+  const largo = 'a'.repeat(200);
+  const spec = normalizeUiSpec({ message: 'm', title: largo, ui: [] });
+  assert.equal(spec.title.length, 80);
+  assert.ok(spec.title.endsWith('…'));
 });

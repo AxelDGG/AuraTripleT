@@ -1,39 +1,34 @@
-// Cliente HTTP: dashboard (MCP agregado), simulador y stream SSE del agente.
+// Cliente HTTP: salud del servicio, historial de visualizaciones (Tiger Data) y
+// stream SSE del agente.
 (function () {
-  const DASHBOARD_TIMEOUT_MS = 20000;
+  const DEFAULT_TIMEOUT_MS = 15000;
   const CHAT_TIMEOUT_MS = 180000;
 
-  async function fetchJson(url, options = {}, timeoutMs = DASHBOARD_TIMEOUT_MS) {
+  async function fetchJson(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok || body.ok === false) {
-        throw new Error(body.error || `HTTP ${res.status}`);
-      }
+      if (!res.ok || body.ok === false) throw new Error(body.error || `HTTP ${res.status}`);
       return body;
     } finally {
       clearTimeout(timer);
     }
   }
 
-  async function fetchDashboard() {
-    const body = await fetchJson('/api/dashboard');
-    return body.data;
-  }
+  const fetchHealth = () => fetchJson('/api/health', {}, 8000);
 
-  async function fetchHealth() {
-    return fetchJson('/api/health', {}, 8000);
-  }
-
-  async function simulateCredit(payload) {
-    const body = await fetchJson('/api/simulate-credit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return body.data;
+  // Historial completo o filtrado. Devuelve { source, folders[], entries[] }:
+  // `folders` siempre trae las cinco carpetas con su total, aunque el filtro
+  // deje fuera algunas entradas.
+  function fetchHistory({ folder, search, limit } = {}) {
+    const params = new URLSearchParams();
+    if (folder) params.set('folder', folder);
+    if (search) params.set('search', search);
+    if (limit) params.set('limit', String(limit));
+    const query = params.toString();
+    return fetchJson(`/api/history${query ? `?${query}` : ''}`);
   }
 
   // Consume el stream SSE de /api/chat y entrega cada evento a onEvent.
@@ -76,5 +71,5 @@
     }
   }
 
-  window.API = { fetchDashboard, fetchHealth, simulateCredit, streamChat };
+  window.API = { fetchHealth, fetchHistory, streamChat };
 })();

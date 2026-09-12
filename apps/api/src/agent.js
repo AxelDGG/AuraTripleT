@@ -2,7 +2,7 @@
 // MCP y produce especificaciones de UI (Norte UI Spec) que los clientes
 // renderizan en tiempo real.
 
-import { componentsPromptSection } from '@norte/a2ui-schema';
+import { DEFAULT_FOLDER, componentsPromptSection, foldersPromptSection } from '@norte/a2ui-schema';
 import { listToolsForLlm, callMcpTool } from './mcp-client.js';
 import { getLlmProvider } from './providers/index.js';
 import { parseUiJson } from './ui-spec.js';
@@ -19,9 +19,12 @@ REGLAS:
 1. SIEMPRE respondes en español mexicano, tono profesional y cercano.
 2. Usa las herramientas disponibles para obtener datos reales del cliente ANTES de responder. Nunca inventes cifras. Si necesitas varias herramientas, llámalas TODAS en la misma ronda (tool calls en paralelo).
 3. Tu respuesta final DEBE ser ÚNICAMENTE un objeto JSON válido (sin texto antes ni después, sin markdown) con esta forma:
-{"message": "<resumen breve y útil en 1-3 frases>", "ui": [<componentes>]}
+{"message": "<resumen breve y útil en 1-3 frases>", "title": "<título corto, máx 6 palabras>", "folder": "<id de carpeta>", "ui": [<componentes>]}
 
 ${componentsPromptSection()}
+
+${foldersPromptSection()}
+El "title" es como se guarda la visualización en el historial: concreto y buscable ("Gastos de agosto", "Transferencia a Juan Pérez"), nunca genérico ("Resultado", "Tu consulta").
 
 FLUJOS INTERACTIVOS:
 - Si el usuario quiere transferir dinero y faltan datos, genera un "form" con action "transfer_funds": campos fromAccountId (select con cuentas de débito), destino (select con beneficiarios BEN-xx y cuentas propias ACC-xx), amount (number) y concept (text). Consulta primero get_accounts y get_beneficiaries para llenar los selects con opciones reales.
@@ -34,11 +37,13 @@ FLUJOS INTERACTIVOS:
 Los montos negativos son cargos. Formatea montos en el message como pesos mexicanos.`;
 
 const REPAIR_PROMPT =
-  'Tu respuesta no fue JSON válido. Responde ÚNICAMENTE con el objeto JSON {"message":"...","ui":[...]} sin ningún texto adicional.';
+  'Tu respuesta no fue JSON válido. Responde ÚNICAMENTE con el objeto JSON {"message":"...","title":"...","folder":"...","ui":[...]} sin ningún texto adicional.';
 
 function buildFallbackSpec() {
   return {
     message: 'No pude generar la interfaz en este momento. Intenta reformular tu solicitud.',
+    title: 'Sin respuesta del agente',
+    folder: DEFAULT_FOLDER,
     ui: [{ type: 'alert', level: 'error', text: 'El agente no produjo una respuesta válida tras varios intentos.' }],
   };
 }
@@ -108,7 +113,7 @@ export async function runAgent({ userMessage, history = [], emit, signal, provid
 
     const parsed = parseUiJson(assistantMsg.content);
     if (parsed) {
-      emit({ type: 'ui', message: parsed.message, ui: parsed.ui });
+      emit({ type: 'ui', message: parsed.message, ui: parsed.ui, folder: parsed.folder, title: parsed.title });
       return parsed;
     }
 
@@ -118,6 +123,6 @@ export async function runAgent({ userMessage, history = [], emit, signal, provid
   }
 
   const fallback = buildFallbackSpec();
-  emit({ type: 'ui', ...fallback });
+  emit({ type: 'ui', ...fallback, fallback: true });
   return fallback;
 }

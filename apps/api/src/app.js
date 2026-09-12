@@ -11,9 +11,12 @@ import { createRateLimiter } from './middleware/rate-limit.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { healthRouter } from './routes/health.js';
 import { dashboardRouter } from './routes/dashboard.js';
+import { customerRouter } from './routes/customer.js';
 import { creditRouter } from './routes/credit.js';
 import { createChatRouter } from './routes/chat.js';
 import { voiceRouter } from './routes/voice.js';
+import { createHistoryRouter } from './routes/history.js';
+import { createHistoryStore } from './history-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const WEB_PUBLIC_DIR = path.join(__dirname, '..', '..', 'web', 'public');
@@ -23,7 +26,7 @@ const JSON_BODY_LIMIT = '1mb';
 const CHAT_REQUESTS_PER_MINUTE = 20;
 const API_REQUESTS_PER_MINUTE = 120;
 
-export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR } = {}) {
+export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR, historyStore = createHistoryStore() } = {}) {
   const app = express();
 
   app.use(corsForClients);
@@ -36,9 +39,12 @@ export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR } = {})
 
   app.use(healthRouter);
   app.use(dashboardRouter);
+  app.use(customerRouter);
   app.use(creditRouter);
   app.use(createChatRouter({ runAgent: agent }));
   app.use(voiceRouter);
+  app.use(createHistoryRouter({ historyStore }));
+  app.use(createChatRouter({ runAgent: agent, historyStore }));
 
   app.use(errorHandler);
   return app;
