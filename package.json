@@ -7,6 +7,7 @@
   "workspaces": [
     "apps/api",
     "apps/web",
+    "packages/a2ui-schema",
     "packages/mcp-server"
   ],
   "scripts": {

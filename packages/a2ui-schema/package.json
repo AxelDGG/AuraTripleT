@@ -1,0 +1,20 @@
+{
+  "name": "@norte/a2ui-schema",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Norte UI Spec v1: contrato de componentes (zod) que el agente emite y web/mobile renderizan",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test tests/schema.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  }
+}
