@@ -54,6 +54,9 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 4. El cliente MCP (`apps/api/src/mcp-client.js`) lanza el servidor como subproceso usando la ruta que
    exporta el paquete `@norte/mcp-server` (`SERVER_PATH`), así la API no depende de la estructura de
    carpetas del servidor.
+5. El LLM es un **proveedor intercambiable** (`apps/api/src/providers/`, `LLM_PROVIDER`), la salida del
+   modelo se **normaliza con el contrato** `@norte/a2ui-schema` antes de emitir `ui`, y las tools del
+   MCP trabajan sobre un **repositorio de datos** (`BANK_DATA_SOURCE`: `memory` hoy, `tiger` después).
 
 ### Herramientas MCP
 
@@ -80,12 +83,13 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 Desde la raíz del monorepo:
 
 ```bash
-npm install            # instala los tres workspaces y enlaza @norte/*
+npm install            # instala los cuatro workspaces y enlaza @norte/*
 cp .env.example .env   # y pon tu GROQ_API_KEY
 npm run dev            # http://localhost:3040
 ```
 
 El `.env` vive en la raíz del repo; `@norte/api` lo carga desde ahí sin importar el cwd.
+Con Docker: `docker compose -f infra/docker-compose.yml up --build` (ver `infra/README.md`).
 
 ## App móvil (iOS / Android)
 
@@ -99,30 +103,41 @@ consumiendo este mismo backend (`/api/dashboard`, `/api/simulate-credit` y el st
 npm test               # corre los tests de todos los workspaces
 ```
 
-33 pruebas: 29 unitarias (herramientas bancarias, portafolio, series de rendimiento, compuerta de
-confirmación, parseo del JSON del LLM y recuperación de `failed_generation`) + 4 de integración MCP
-de extremo a extremo (cliente real → servidor stdio → herramientas).
+77 pruebas en cuatro workspaces: contrato Norte UI Spec (14), reglas de negocio y repositorio en
+memoria (30, incluida una de transferencias concurrentes), y en la API (33) el loop del agente con proveedor falso + MCP real, el proveedor Groq
+con fetch falso (reintentos 429, rescate de `failed_generation`), las rutas HTTP con el stream SSE de
+`/api/chat`, y la integración MCP de extremo a extremo (cliente real → servidor stdio → herramientas).
 
 ## Estructura
 
 ```
 apps/api/                      @norte/api
-  src/index.js                 Express: /api/dashboard, /api/simulate-credit, /api/chat (SSE), seguridad
-  src/agent.js                 Loop de tool-calling con Groq, reintentos, timeout, reparación de JSON
+  src/index.js                 Arranque: carga el .env de la raíz, listen, precalienta MCP
+  src/app.js                   createApp(): middleware + rutas, sin puerto (así se prueba)
+  src/routes/                  health · dashboard · credit · chat (SSE)
+  src/middleware/              security (CORS + CSP) · rate-limit · error-handler
+  src/agent.js                 Loop de tool-calling con proveedor inyectable y SYSTEM_PROMPT
+  src/providers/               groq.js (reintentos, timeout, rescate de failed_generation) · index.js (LLM_PROVIDER)
+  src/ui-spec.js               Parsea y normaliza la respuesta del modelo con @norte/a2ui-schema
   src/mcp-client.js            Cliente MCP (subproceso) con reconexión
-  tests/                       agent · mcp (integración e2e)
+  tests/                       agent · routes · providers-groq · ui-spec · mcp (integración e2e)
 apps/web/public/               @norte/web
   index.html                   Dashboard (sidebar, topbar, vistas, panel de IA)
   css/                         tokens · layout · components · chart · ai-panel
   js/                          i18n · icons · api · voice · chart · dashboard · views · ai-panel · modals · app
   renderer.js                  Renderer de la UI generativa (tema oscuro)
 packages/mcp-server/           @norte/mcp-server
-  src/index.js                 Exporta SERVER_PATH
+  src/index.js                 Exporta SERVER_PATH, createBankingTools y los repositorios
   src/server.js                Servidor MCP (stdio) con 14 herramientas validadas con zod
-  src/tools.js                 Lógica pura de las herramientas
+  src/tools.js                 createBankingTools(repo): reglas de negocio puras
+  src/repositories/            memory.js (seeds) · index.js (BANK_DATA_SOURCE); tiger pendiente
   src/data/mockData.js         Cliente, cuentas, movimientos, inversiones, divisas, créditos
   src/data/marketData.js       Posiciones, watchlist y generador determinista de series
-  tests/                       tools
+  tests/                       tools · repositories
+packages/a2ui-schema/          @norte/a2ui-schema
+  src/catalog.js               Los 10 componentes y el bloque del prompt
+  src/schemas.js               Esquemas zod tolerantes por componente
+  src/index.js                 normalizeUiSpec / normalizeComponent
 ```
 
 ## Datos de prueba
@@ -140,7 +155,9 @@ portafolio bursátil en USD de 4 posiciones con 8 acciones en seguimiento. Todo 
   recuperación cuando el modelo emite el JSON como tool call `json`, aborto al cerrar la pestaña.
 - **Seguridad**: API key solo en `.env`, CSP + nosniff + frame-ancestors, rate limiting 20 req/min,
   validación zod en cada herramienta, `transfer_funds` solo se ejecuta tras un envío explícito del
-  formulario (`confirmed` lo fija el backend, no el modelo) con tope de $50,000 MXN por operación.
+  formulario (`confirmed` lo fija el backend, no el modelo) con tope de $50,000 MXN por operación. La
+  verificación de saldo y el cargo ocurren en el mismo tick dentro del repositorio, así dos
+  transferencias concurrentes no pueden sobregirar la cuenta.
 - **Limitación conocida (demo)**: el estado bancario vive en memoria y es único para todo el proceso
   (un solo cliente mock). Multiusuario requeriría estado por sesión autenticada.
 - **Stack**: Node.js 18+, Express, `@modelcontextprotocol/sdk`, zod, Chart.js (self-hosted) y

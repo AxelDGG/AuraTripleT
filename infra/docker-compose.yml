@@ -1,0 +1,46 @@
+# "Develop locally, deploy globally": el mismo compose corre en la laptop y en Vultr.
+#   docker compose -f infra/docker-compose.yml up --build
+#
+# - api: @norte/api con el servidor MCP como subproceso (puerto 3040).
+# - timescaledb: Postgres + TimescaleDB, la base operacional (Tiger Data). Credenciales de
+#   desarrollo (norte/norte), puerto expuesto solo en localhost. En producción DATABASE_URL
+#   apunta a Tiger Cloud desde el .env y este servicio no se levanta:
+#     docker compose -f infra/docker-compose.yml up -d --no-deps api
+#
+# Todas las variables (incluida DATABASE_URL) vienen del .env de la raíz; aquí no se
+# sobreescribe ninguna para que el mismo archivo sirva local y en Vultr.
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      PORT: 3040
+    ports:
+      - "3040:3040"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  timescaledb:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_USER: norte
+      POSTGRES_PASSWORD: norte
+      POSTGRES_DB: norte
+    volumes:
+      - timescale-data:/home/postgres/pgdata/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U norte -d norte"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  timescale-data:

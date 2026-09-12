@@ -54,7 +54,7 @@ Los tres pasos que repite cada interacción:
 |---|---|---|
 | **LLM** | Un modelo al centro: interpreta, decide y orquesta | `apps/api/src/agent.js` |
 | **MCP** | Model Context Protocol para exponer al modelo datos, herramientas y acciones propias | `packages/mcp-server/` |
-| **A2UI** | Agent-to-UI o un protocolo equivalente para transmitir la interfaz que genera el agente | Norte UI Spec (sección 5) + `apps/web/public/renderer.js` |
+| **A2UI** | Agent-to-UI o un protocolo equivalente para transmitir la interfaz que genera el agente | Norte UI Spec (sección 5): `packages/a2ui-schema` + `apps/web/public/renderer.js` |
 
 ### Cuatro reglas que aplican a todos los equipos
 
@@ -138,9 +138,9 @@ Los tres pasos del reto mapeados a código real:
 
 | Paso | Qué pasa | Dónde |
 |---|---|---|
-| Interpretar la intención | `POST /api/chat` abre un stream SSE; el agente recibe el mensaje y el historial, y decide qué herramientas llamar (varias en paralelo) | `apps/api/src/index.js`, `apps/api/src/agent.js` |
-| Consultar datos y actuar | Cada tool call viaja por MCP (stdio) al servidor `banorte-banking`; cada llamada y su resultado se transmiten en vivo (`tool_call`, `tool_result`) | `packages/mcp-server/src/server.js`, `packages/mcp-server/src/tools.js` |
-| Generar la interfaz | El agente termina con `{"message", "ui": [...]}`; el evento `ui` llega al cliente y el renderer construye DOM seguro | `apps/web/public/renderer.js` |
+| Interpretar la intención | `POST /api/chat` abre un stream SSE; el agente recibe el mensaje y el historial, y decide qué herramientas llamar (varias en paralelo) | `apps/api/src/routes/chat.js`, `apps/api/src/agent.js` |
+| Consultar datos y actuar | Cada tool call viaja por MCP (stdio) al servidor `banorte-banking`; las tools aplican reglas de negocio sobre un repositorio de datos; cada llamada y su resultado se transmiten en vivo (`tool_call`, `tool_result`) | `packages/mcp-server/src/server.js`, `src/tools.js`, `src/repositories/` |
+| Generar la interfaz | El agente termina con `{"message", "ui": [...]}`; la API lo normaliza con el contrato y el evento `ui` llega al cliente, donde el renderer construye DOM seguro | `apps/api/src/ui-spec.js`, `packages/a2ui-schema`, `apps/web/public/renderer.js` |
 | Cerrar el ciclo | Un formulario generado dispara `genui:form-submit`; el cliente reenvía `[form:<accion>] campo=valor` y el agente ejecuta la acción y genera la siguiente UI | `apps/web/public/js/ai-panel.js` |
 
 Dos decisiones de la base que vale la pena defender ante el jurado:
@@ -187,14 +187,16 @@ el agente emite y que cualquier cliente (web hoy, mobile después) renderiza con
 
 Reglas del protocolo:
 
-- **Un solo contrato.** Hoy vive en el `SYSTEM_PROMPT` de `apps/api/src/agent.js` y en el renderer web.
-  Se extrae a `packages/a2ui-schema` (zod) para que API, web y mobile validen y rendericen lo mismo.
+- **Un solo contrato.** Vive en `packages/a2ui-schema` (catálogo + esquemas zod). El `SYSTEM_PROMPT` del
+  agente se genera desde el catálogo y la API normaliza cada respuesta del modelo con los esquemas antes
+  de emitirla, así web y mobile renderizan siempre la misma forma canónica.
 - **Los componentes son nuestros.** El rediseño de UI cambia la piel (tokens, layout, animaciones), no
   los tipos ni sus campos.
 - **Renderizado seguro por construcción.** Solo `createElement` y `textContent`; enums (tipo de gráfica,
   nivel de alerta, tipo de cuenta) se validan contra listas cerradas.
-- **Tolerante al modelo.** El renderer acepta variantes razonables (`fields` o `inputs`, opciones como
-  objeto o string) para no romper la demo por un detalle del LLM.
+- **Tolerante al modelo.** El contrato acepta variantes razonables del LLM (`fields` o `inputs`, `type` o
+  `inputType`, opciones como objeto o string, enums fuera de catálogo) y las lleva a la forma canónica en
+  la API, para no romper la demo por un detalle del modelo.
 
 Tradeoff registrado: usar el protocolo A2UI de Google daría puntos de "estándar", pero el JSON propio ya
 funciona, es más simple de renderizar en dos plataformas y es seguro por diseño. Si sobra tiempo se
@@ -209,9 +211,9 @@ Regla: **cada proveedor externo tiene fallback** para que la demo nunca dependa 
 
 | Reto | Qué pide | Cómo lo usa Norte AI | Mínimo viable para la demo |
 |---|---|---|---|
-| **Gemini API** | Una app de IA que entienda lenguaje, analice datos y use la API con creatividad | **Gemini es el analista.** (a) Tool MCP `analyze_finances`: hasta 12 meses de movimientos a Gemini Flash con salida estructurada → gastos hormiga, suscripciones, anomalías y metas sugeridas. (b) Tool `parse_receipt`: foto de ticket o comprobante → `{comercio, fecha, monto, categoría}` para conciliación (multimodal). (c) Coach de educación financiera que explica CAT, intereses o SPEI con los datos de la persona. (d) Fallback de orquestación: `LLM_PROVIDER=gemini` usa function calling nativo con el mismo esquema de tools. | (a) y (b) visibles en el guion de la demo |
+| **Gemini API** | Una app de IA que entienda lenguaje, analice datos y use la API con creatividad | **Gemini es el analista.** (a) Tool MCP `analyze_finances`: hasta 12 meses de movimientos a Gemini Flash con salida estructurada → gastos hormiga, suscripciones, anomalías y metas sugeridas. (b) Tool `parse_receipt`: foto de ticket o comprobante → `{comercio, fecha, monto, categoría}` para conciliación (multimodal). (c) Coach de educación financiera que explica CAT, intereses o SPEI con los datos de la persona. (d) Fallback de orquestación: `LLM_PROVIDER=gemini` usa function calling nativo con el mismo esquema de tools (se registra en `apps/api/src/providers/`). | (a) y (b) visibles en el guion de la demo |
 | **ElevenLabs** | Agentes que hablan | **STT + TTS, el LLM sigue siendo el cerebro.** Speech-to-Text para el micrófono (web y mobile) y Text-to-Speech con la voz "Norte" en español mexicano, con streaming, para leer el `message`. Endpoints propios `POST /api/voice/transcribe` y `POST /api/voice/speak`: la key nunca llega al cliente. Fallback: Web Speech API (`apps/web/public/js/voice.js`). | TTS en web y mobile, STT en mobile |
-| **Tiger Data** | App rápida y escalable con SQL | **Base operacional.** Postgres + TimescaleDB en Tiger Cloud: `transactions` como hypertable, continuous aggregates para gasto por categoría y flujo mensual, multi-cliente por `customer_id`. Las tools MCP leen vía repositorios (`memory` = mock actual, `tiger` = pg). Local: contenedor TimescaleDB en `infra/docker-compose.yml`. | Cuentas, movimientos y gastos leyendo de Tiger con seed sintético |
+| **Tiger Data** | App rápida y escalable con SQL | **Base operacional.** Postgres + TimescaleDB en Tiger Cloud: `transactions` como hypertable, continuous aggregates para gasto por categoría y flujo mensual, multi-cliente por `customer_id`. Las tools MCP leen vía repositorios (`packages/mcp-server/src/repositories/`: `memory` hoy, `tiger` pendiente, se elige con `BANK_DATA_SOURCE`). Local: contenedor TimescaleDB en `infra/docker-compose.yml`. | Cuentas, movimientos y gastos leyendo de Tiger con seed sintético |
 | **Snowflake** | Uso de Snowflake para APIs y LLMs | **Capa analítica.** Dataset sintético poblacional (miles de clientes, 24 meses) para **benchmarks de pares** ("gastas 30% más que personas como tú en restaurantes") y Cortex AI: `AI_CLASSIFY` para categorizar, `AI_AGG` / `AI_COMPLETE` para resúmenes, Cortex Analyst para preguntas en lenguaje natural. Expuesto como tool MCP `get_peer_benchmark` vía SQL REST API o `snowflake-sdk`. | Una consulta Cortex visible dentro de la UI generada |
 | **Vultr** | Develop locally, deploy globally | **Infraestructura.** El mismo `docker-compose.yml` corre local y en un Vultr Cloud Compute (API + Caddy con HTTPS). Object Storage para imágenes de recibos. GitHub Action que despliega en cada push a `main`. La app móvil y el widget apuntan a la URL pública. | API pública accesible desde el celular de la demo |
 
@@ -249,37 +251,44 @@ AuraTripleT/
 │   └── ARQUITECTURA.md        ← detalle técnico de la base
 ├── apps/
 │   ├── api/                   @norte/api · Express + agente + cliente MCP + streaming SSE
-│   │   ├── src/index.js       rutas, seguridad, rate limiting
-│   │   ├── src/agent.js       loop de tool calling, SYSTEM_PROMPT, reparación de JSON
+│   │   ├── src/index.js       arranque: carga el .env de la raíz, listen, precalienta MCP
+│   │   ├── src/app.js         createApp(): middleware + rutas, sin puerto (así se prueba)
+│   │   ├── src/routes/        health · dashboard · credit · chat (SSE)
+│   │   ├── src/middleware/    security (CORS + CSP) · rate-limit · error-handler
+│   │   ├── src/agent.js       loop de tool calling y SYSTEM_PROMPT
+│   │   ├── src/providers/     proveedores LLM intercambiables (groq hoy; gemini se registra aquí)
+│   │   ├── src/ui-spec.js     parsea y normaliza la respuesta del modelo con @norte/a2ui-schema
 │   │   ├── src/mcp-client.js  lanza @norte/mcp-server como subproceso
-│   │   └── tests/
+│   │   └── tests/             agent · routes · providers · ui-spec · mcp (e2e)
 │   ├── web/                   @norte/web · UI web vanilla (la sirve @norte/api)
 │   │   └── public/            index.html · renderer.js · css/ · js/ · vendor/
 │   └── mobile/                (placeholder) React Native + widget Android
 ├── packages/
 │   ├── mcp-server/            @norte/mcp-server · servidor MCP banorte-banking
-│   │   ├── src/index.js       exporta SERVER_PATH
-│   │   ├── src/server.js      14 herramientas con zod (stdio)
-│   │   ├── src/tools.js       lógica pura
-│   │   ├── src/data/          mock: cliente, cuentas, movimientos, mercado
-│   │   └── tests/
-│   ├── a2ui-schema/           (placeholder) contrato Norte UI Spec en zod
+│   │   ├── src/server.js      registra las 14 herramientas con zod (stdio)
+│   │   ├── src/tools.js       createBankingTools(repo): reglas de negocio puras
+│   │   ├── src/repositories/  fuentes de datos: memory hoy, tiger después (BANK_DATA_SOURCE)
+│   │   ├── src/data/          seeds sintéticos: cliente, cuentas, movimientos, mercado
+│   │   └── tests/             tools · repositories
+│   ├── a2ui-schema/           @norte/a2ui-schema · contrato Norte UI Spec v1 (catálogo + esquemas zod)
 │   └── shared/                (placeholder) formatters, i18n, tipos
 ├── data/                      (placeholder) seeds para Tiger · DDL y dataset para Snowflake
-└── infra/                     (placeholder) docker-compose · deploy en Vultr
+└── infra/                     Dockerfile + docker-compose (api + timescaledb) · deploy en Vultr pendiente
 ```
 
 Las carpetas marcadas como placeholder existen para reservar su lugar y tienen un README con lo que
-va ahí. Se llenan en las fases 2 y 3.
+va ahí. Se llenan en las fases 2 y 3. Cada workspace tiene sus tests; `npm test` en la raíz corre todos.
 
 ### Quiero agregar X, ¿dónde va?
 
 | Quiero agregar… | Va en… | Y además… |
 |---|---|---|
 | Una herramienta MCP nueva | `packages/mcp-server/src/tools.js` + registro en `src/server.js` | Test en `packages/mcp-server/tests/`; el agente la descubre solo |
-| Un tipo de componente de UI | `packages/a2ui-schema` (contrato) | Renderer web y renderer mobile; mención en el `SYSTEM_PROMPT` |
-| Una integración externa (Gemini, ElevenLabs, Snowflake…) | `apps/api/src/providers/<nombre>/` | Variables en `.env.example`; fallback si el servicio falla |
-| Un endpoint HTTP | `apps/api/src/index.js` (o `src/routes/` cuando crezca) | Validación de entrada y rate limiting |
+| Un tipo de componente de UI | `packages/a2ui-schema/src/catalog.js` + `schemas.js` | Renderer web y mobile; el prompt se actualiza solo desde el catálogo; test en `packages/a2ui-schema/tests/` |
+| Un proveedor LLM (Gemini) | `apps/api/src/providers/<nombre>.js` + registro en `providers/index.js` | Mismo contrato `chat()` que Groq; test con fetch falso como `providers-groq.test.js` |
+| Una fuente de datos (Tiger, Snowflake) | `packages/mcp-server/src/repositories/<nombre>.js` + registro en `repositories/index.js` | Mismo contrato que `memory.js`; las tools no cambian |
+| Un servicio externo que no es LLM (ElevenLabs) | `apps/api/src/services/<nombre>.js` + su ruta en `routes/` | Key solo en `.env`; fallback documentado |
+| Un endpoint HTTP | `apps/api/src/routes/<nombre>.js` + registro en `app.js` | Validación de entrada; test en `apps/api/tests/routes.test.js` |
 | Datos de prueba | `data/seeds/` o `data/snowflake/` | Nunca datos reales |
 | Un secreto | Solo `.env` (raíz) | Nombre documentado en `.env.example` |
 | Una decisión técnica | `docs/DECISIONES.md` | Con el tradeoff: qué se descartó y por qué |
@@ -308,7 +317,7 @@ va ahí. Se llenan en las fases 2 y 3.
 ### De ingeniería
 
 - El agente y los clientes solo acceden a datos vía tools MCP; nadie consulta la base de datos directo.
-- Validación con zod en toda frontera: argumentos de tools, cuerpos de requests y (objetivo) la spec de UI.
+- Validación con zod en toda frontera: argumentos de tools, cuerpos de requests y la spec de UI (`@norte/a2ui-schema`).
 - Los renderers nunca usan `innerHTML` ni HTML crudo con salida del modelo.
 - Secretos solo en `.env` en la raíz; `.env.example` siempre actualizado; `.env` nunca se sube.
 - Cada herramienta nueva trae su test (`node --test`); `npm test` verde antes de cualquier merge.
@@ -352,14 +361,15 @@ Edita `.env` y pon tu `GROQ_API_KEY`. Luego:
 npm run dev
 ```
 
-Abre `http://localhost:3040`. Para correr las 33 pruebas de todos los workspaces:
+Abre `http://localhost:3040`. Para correr las pruebas de los cuatro workspaces:
 
 ```bash
 npm test
 ```
 
 Otros scripts desde la raíz: `npm start` (igual que `dev`), `npm run mcp` (levanta solo el servidor
-MCP por stdio, útil para inspectores MCP).
+MCP por stdio, útil para inspectores MCP). Con Docker: `docker compose -f infra/docker-compose.yml up --build`
+(ver `infra/README.md`).
 
 ### Variables de entorno
 
@@ -367,7 +377,8 @@ MCP por stdio, útil para inspectores MCP).
 |---|---|---|
 | `GROQ_API_KEY`, `GROQ_MODEL` | Hoy | Orquestador (`openai/gpt-oss-120b`) |
 | `PORT` | Hoy | Puerto de la API (3040) |
-| `LLM_PROVIDER` | Objetivo | `groq` o `gemini` como orquestador |
+| `LLM_PROVIDER` | Hoy (opcional) | `groq` (default); `gemini` cuando se registre el proveedor |
+| `BANK_DATA_SOURCE` | Hoy (opcional) | Fuente de datos del MCP: `memory` (default) o `tiger` cuando exista |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Objetivo | Insights, recibos, coach, fallback |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Objetivo | STT y TTS |
 | `DATABASE_URL` | Objetivo | Tiger Data (TimescaleDB) |
@@ -380,7 +391,7 @@ MCP por stdio, útil para inspectores MCP).
 
 | Fase | Qué | Hecho cuando… |
 |---|---|---|
-| 0 · Base | MCP ✅ · Conexión a API ✅ · UI web base ✅ · UI mobile ⬜ | `npm test` verde y el flujo de transferencia funciona de punta a punta |
+| 0 · Base | MCP ✅ · Conexión a API ✅ · UI web base ✅ · Monorepo + contrato + proveedores + repositorios ✅ · UI mobile ⬜ | `npm test` verde y el flujo de transferencia funciona de punta a punta |
 | 1 · Wireframe UI | Wireframes de la nueva interfaz (listo mañana en la mañana) | El equipo aprueba los wireframes y el track de UI arranca sin bloquear al resto |
 | 2 · Mobile + widget | App React Native y widget Android con accesos Hablar / Escribir | Desde el widget se abre el chat y se completa una consulta |
 | 3 · Retos MLH | Gemini, ElevenLabs, Tiger Data, Snowflake y Vultr en el orden de la tabla de la sección 6 | Cada reto cumple su mínimo viable y aparece en el guion |
