@@ -4,25 +4,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import {
-  createBankState,
-  getCustomerProfile,
-  getAccounts,
-  getTransactions,
-  getSpendingByCategory,
-  getMonthlyCashflow,
-  getInvestments,
-  getExchangeRates,
-  getBeneficiaries,
-  simulateCredit,
-  listCreditProducts,
-  transferFunds,
-  getPortfolio,
-  getWatchlist,
-  getPortfolioPerformance,
-} from './tools.js';
+import { createRepository } from './repositories/index.js';
+import { createBankingTools } from './tools.js';
 
-const state = createBankState();
+// Fuente de datos según BANK_DATA_SOURCE (memory por defecto); cada proceso
+// del servidor tiene su propio estado.
+const tools = createBankingTools(createRepository());
 
 const server = new McpServer({ name: 'banorte-banking', version: '1.0.0' });
 
@@ -34,14 +21,14 @@ server.tool(
   'get_customer_profile',
   'Obtiene el perfil del cliente autenticado: nombre, segmento, score crediticio y datos de contacto.',
   {},
-  async () => jsonResult(getCustomerProfile()),
+  async () => jsonResult(await tools.getCustomerProfile()),
 );
 
 server.tool(
   'get_accounts',
   'Lista las cuentas del cliente (nómina, ahorro y tarjeta de crédito) con saldos actuales.',
   {},
-  async () => jsonResult(getAccounts(state)),
+  async () => jsonResult(await tools.getAccounts()),
 );
 
 server.tool(
@@ -52,7 +39,7 @@ server.tool(
     category: z.string().nullish().describe('Categoría, ej. Restaurantes, Supermercado'),
     limit: z.number().nullish().describe('Máximo de movimientos a devolver (default 15)'),
   },
-  async (args) => jsonResult(getTransactions(state, args)),
+  async (args) => jsonResult(await tools.getTransactions(args)),
 );
 
 server.tool(
@@ -61,42 +48,42 @@ server.tool(
   {
     accountId: z.string().nullish().describe('Limitar a una cuenta específica'),
   },
-  async (args) => jsonResult(getSpendingByCategory(state, args)),
+  async (args) => jsonResult(await tools.getSpendingByCategory(args)),
 );
 
 server.tool(
   'get_monthly_cashflow',
   'Devuelve ingresos vs gastos por mes (para gráficas de flujo de efectivo).',
   {},
-  async () => jsonResult(getMonthlyCashflow(state)),
+  async () => jsonResult(await tools.getMonthlyCashflow()),
 );
 
 server.tool(
   'get_investments',
   'Lista las inversiones del cliente (pagarés y fondos) con rendimiento.',
   {},
-  async () => jsonResult(getInvestments()),
+  async () => jsonResult(await tools.getInvestments()),
 );
 
 server.tool(
   'get_exchange_rates',
   'Tipos de cambio del día (compra/venta) para USD, EUR, CAD y JPY.',
   {},
-  async () => jsonResult(getExchangeRates()),
+  async () => jsonResult(await tools.getExchangeRates()),
 );
 
 server.tool(
   'get_beneficiaries',
   'Lista los beneficiarios registrados para transferencias SPEI.',
   {},
-  async () => jsonResult(getBeneficiaries()),
+  async () => jsonResult(await tools.getBeneficiaries()),
 );
 
 server.tool(
   'list_credit_products',
   'Lista los productos de crédito disponibles (automotriz, hipotecario, personal) con tasas y plazos.',
   {},
-  async () => jsonResult(listCreditProducts()),
+  async () => jsonResult(await tools.listCreditProducts()),
 );
 
 server.tool(
@@ -107,7 +94,7 @@ server.tool(
     amount: z.number().describe('Monto solicitado en MXN'),
     months: z.number().describe('Plazo en meses'),
   },
-  async (args) => jsonResult(simulateCredit(args)),
+  async (args) => jsonResult(await tools.simulateCredit(args)),
 );
 
 server.tool(
@@ -121,14 +108,14 @@ server.tool(
     concept: z.string().nullish().describe('Concepto del pago'),
     confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde el formulario; no lo inventes'),
   },
-  async (args) => jsonResult(transferFunds(state, args)),
+  async (args) => jsonResult(await tools.transferFunds(args)),
 );
 
 server.tool(
   'get_portfolio',
   'Portafolio bursátil del cliente en USD: posiciones (AAPL, AMZN, MSFT, NVDA), valor total, variación del día y distribución.',
   {},
-  async () => jsonResult(getPortfolio()),
+  async () => jsonResult(await tools.getPortfolio()),
 );
 
 server.tool(
@@ -137,7 +124,7 @@ server.tool(
   {
     filter: z.string().nullish().describe('most_viewed | gain | lose'),
   },
-  async (args) => jsonResult(getWatchlist(args)),
+  async (args) => jsonResult(await tools.getWatchlist(args)),
 );
 
 server.tool(
@@ -146,7 +133,7 @@ server.tool(
   {
     range: z.string().nullish().describe('1D | 1W | 1M | 6M | 1Y | ALL'),
   },
-  async (args) => jsonResult(getPortfolioPerformance(args)),
+  async (args) => jsonResult(await tools.getPortfolioPerformance(args)),
 );
 
 const transport = new StdioServerTransport();
