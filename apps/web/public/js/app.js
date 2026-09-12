@@ -44,6 +44,11 @@
       // "/" enfoca el composer; Ctrl/Cmd+K, el buscador del riel.
       if (e.key === '/' && !typing) { e.preventDefault(); $('composerInput').focus(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('railSearch').focus(); }
+      // Ctrl/Cmd+1 y +2 saltan entre las dos pestañas del riel sin usar el ratón.
+      if ((e.ctrlKey || e.metaKey) && (e.key === '1' || e.key === '2')) {
+        e.preventDefault();
+        window.History.selectTab(e.key === '1' ? 'history' : 'collection');
+      }
     });
   }
 
@@ -53,6 +58,7 @@
     window.UI.init();
     window.Agent.init();
     window.History.init({ onOpen: (entry) => window.Agent.showEntry(entry) });
+    window.Suggest.init();
 
     document.getElementById('app').classList.add('is-ready');
     wireTopbar();

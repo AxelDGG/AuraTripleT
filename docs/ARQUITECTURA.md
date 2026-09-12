@@ -75,8 +75,24 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 
 ### Componentes de UI generativos
 
-`header`, `kpi_grid`, `balance_cards`, `chart` (bar/line/pie/doughnut), `table`, `transaction_list`,
+`header`, `kpi_grid`, `balance_cards`, `chart`, `table`, `transaction_list`,
 `form` (interactivo, reenvía al agente), `alert`, `progress`, `text`.
+
+### Gráficas
+
+El componente `chart` cubre 16 tipos, con el vocabulario de [Bklit UI](https://bklit.com/docs):
+`bar`, `stacked_bar`, `horizontal_bar`, `line`, `area`, `composed`, `pie`, `doughnut`, `ring`,
+`gauge`, `radar`, `scatter`, `funnel`, `heatmap`, `candlestick` y `profit_loss`.
+
+Bklit se distribuye como registry de shadcn/ui (React + visx, solo por npm), así que su
+vocabulario y sus convenciones visuales están portados a la capa vanilla en
+`apps/web/public/js/charts.js`: Chart.js para lo cartesiano y SVG propio para gauge, ring,
+funnel y heatmap. La paleta vive en `css/tokens.css` como `--chart-1..8`, `--chart-grid` y
+`--chart-track`, los mismos nombres que usa Bklit.
+
+El catálogo de `packages/a2ui-schema/src/catalog.js` es la única fuente de verdad: de ahí
+salen tanto el esquema que valida la respuesta del modelo como la sección del prompt que le
+explica cuándo usar cada gráfica.
 
 ## Cómo correrlo
 

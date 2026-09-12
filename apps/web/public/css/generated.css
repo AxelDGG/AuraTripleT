@@ -94,9 +94,110 @@
 .a-bal { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .a-extra { margin-top: 3px; font-size: 11.5px; opacity: 0.82; }
 
-/* ---------- chart ---------- */
+/* ---------- chart ----------
+   El alto lo fija el tipo: lo cartesiano necesita una caja estable para que
+   Chart.js calcule su área; lo radial es cuadrado y lo tabular (embudo, mapa de
+   calor) crece con sus datos. */
+.c-chart.gen > h3 + .ch-sub { margin-top: -4px; }
+.ch-sub { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+.ch-cap { margin-top: 10px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
 .chart-wrap { position: relative; height: 260px; }
 .chart-wrap canvas { max-width: 100%; }
+.chart-wrap[data-kind='radar'],
+.chart-wrap[data-kind='pie'],
+.chart-wrap[data-kind='doughnut'] { height: 290px; }
+.chart-wrap[data-kind='horizontal_bar'] { height: 300px; }
+
+/* Radiales (gauge, ring): la cifra va en HTML encima del SVG, no dentro, para
+   que herede la tipografía y no dependa del escalado del viewBox. */
+.ch-radial { height: 220px; display: grid; place-items: center; }
+.ch-radial > svg { max-height: 100%; }
+.ch-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+.chart-wrap[data-kind='gauge'] .ch-center { justify-content: center; padding-bottom: 14px; }
+.ch-value {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ch-label { font-size: 11.5px; font-weight: 600; color: var(--muted); text-align: center; max-width: 68%; }
+.ch-scale { font-size: 10px; font-weight: 700; fill: var(--muted-2); font-family: var(--font); }
+
+/* Embudo y mapa de calor: alto según contenido. */
+.ch-flow { height: auto; }
+.ch-flow > svg { width: 100%; display: block; }
+
+/* El embudo es una columna de filas; cada una lleva su trapecio y su etiqueta al
+   costado. Las últimas etapas son demasiado estrechas para contener su texto,
+   así que el texto nunca va dentro de la figura. */
+.ch-funnel { display: flex; flex-direction: column; }
+.ch-step { display: flex; align-items: center; gap: 14px; height: 46px; margin-bottom: 6px; }
+.ch-step-shape { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; }
+.ch-step-shape > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ch-step-info {
+  flex: 0 0 auto;
+  width: 46%;
+  max-width: 220px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.ch-step-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-step-val { display: flex; align-items: baseline; gap: 7px; font-variant-numeric: tabular-nums; }
+.ch-step-val b { font-weight: 800; }
+.ch-step-val i { font-style: normal; font-size: 11px; color: var(--muted); }
+
+.ch-heat {
+  display: grid;
+  grid-template-columns: minmax(56px, auto) repeat(var(--cols, 1), minmax(0, 1fr));
+  gap: 3px;
+  font-size: 10.5px;
+}
+.ch-heat-corner { min-height: 18px; }
+.ch-heat-col {
+  color: var(--muted);
+  font-weight: 700;
+  text-align: center;
+  padding-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-heat-row {
+  color: var(--muted);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  padding-right: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-heat-cell {
+  min-height: 34px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.ch-heat-scale { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 10.5px; color: var(--muted); }
+.ch-heat-bar { flex: 1; height: 7px; border-radius: var(--r-pill); }
 
 /* ---------- table ---------- */
 .c-table.gen { overflow-x: auto; }
@@ -220,8 +321,12 @@
 }
 
 /* ---------- Miniaturas: sin sombras ni hover, el detalle no se lee a escala ---------- */
-.car-preview .gen,
-.car-preview .kpi,
-.car-preview .acct,
-.car-preview .card { animation: none; box-shadow: none; transform: none !important; }
-.car-preview .chart-wrap { height: 180px; }
+.tl-thumb .gen,
+.tl-thumb .kpi,
+.tl-thumb .acct,
+.tl-thumb .card { animation: none; box-shadow: none; transform: none !important; }
+.tl-thumb .chart-wrap { height: 180px; }
+/* Altura fija: las siluetas de barras y línea se estiran (preserveAspectRatio
+   none) y los arcos se centran dentro de la misma caja. */
+.tl-thumb .card > svg { width: 100%; height: 120px; }
+.tl-thumb .ch-sub, .tl-thumb .ch-cap { display: none; }

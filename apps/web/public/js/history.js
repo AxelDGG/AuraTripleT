@@ -1,14 +1,18 @@
-// Historial de visualizaciones: el carrusel de arriba y las carpetas del riel
-// derecho. Los datos vienen de /api/history (hypertable ui_history en Tiger
-// Data) y la carpeta de cada entrada la decidió el agente.
+// Riel derecho: las dos pestañas del historial de visualizaciones.
+//
+//   HISTORIAL  → línea de tiempo, lo más reciente arriba, agrupado por día.
+//   COLECCIÓN  → las carpetas que el agente asignó, desplegables.
+//
+// Los datos vienen de /api/history (hypertable ui_history en Tiger Data) y el
+// buscador de arriba filtra las dos pestañas a la vez.
 (function () {
   const $ = (id) => document.getElementById(id);
   const { el } = window.UI;
 
   // Cuántos componentes del spec se dibujan en la miniatura: más no se alcanza
-  // a leer a escala 0.32 y encarece el render de todo el carrusel.
-  const PREVIEW_COMPONENTS = 3;
-  const CAROUSEL_LIMIT = 24;
+  // a leer a escala 0.22 y encarece el render de toda la lista.
+  const PREVIEW_COMPONENTS = 2;
+  const TIMELINE_LIMIT = 40;
   const DRAWER_MS = 280;
   const SEARCH_DEBOUNCE_MS = 220;
 
@@ -18,77 +22,143 @@
     openFolder: null,
     activeId: null,
     search: '',
+    tab: 'history',
+    live: null,
     onOpen: null,
   };
 
   const folderLabel = (id) => state.folders.find((f) => f.id === id)?.label ?? id;
 
-  // ---------- Carrusel ----------
+  // ---------- Pestañas ----------
+
+  function selectTab(tab, { focus = false } = {}) {
+    state.tab = tab;
+    for (const button of document.querySelectorAll('.rail-tab')) {
+      const on = button.dataset.tab === tab;
+      button.classList.toggle('is-active', on);
+      button.setAttribute('aria-selected', String(on));
+      button.tabIndex = on ? 0 : -1;
+      if (on && focus) button.focus();
+    }
+    for (const panel of document.querySelectorAll('.rail-panel')) {
+      const on = panel.id === (tab === 'history' ? 'panelHistory' : 'panelCollection');
+      panel.classList.toggle('is-active', on);
+      panel.hidden = !on;
+    }
+    // El cajón abierto se remide al volver: estaba en un panel oculto y su
+    // scrollHeight era 0 mientras tanto.
+    if (tab === 'collection') requestAnimationFrame(resizeOpenDrawer);
+  }
+
+  function wireTabs() {
+    const tabs = [...document.querySelectorAll('.rail-tab')];
+    tabs.forEach((button, index) => {
+      button.addEventListener('click', () => selectTab(button.dataset.tab));
+      button.addEventListener('keydown', (e) => {
+        const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!delta) return;
+        e.preventDefault();
+        const next = tabs[(index + delta + tabs.length) % tabs.length];
+        selectTab(next.dataset.tab, { focus: true });
+      });
+    });
+  }
+
+  // ---------- Miniatura ----------
 
   function buildPreview(entry) {
-    const preview = el('div', 'car-preview');
-    const inner = el('div', 'car-preview-inner');
-    window.renderGeneratedUi(inner, (entry.spec?.ui ?? []).slice(0, PREVIEW_COMPONENTS), { preview: true });
+    const preview = el('span', 'tl-thumb');
+    const inner = el('span', 'tl-thumb-inner');
+    // El título ya está al lado, en texto legible: la miniatura se salta la
+    // cabecera y arranca en lo que sí distingue una entrada de otra (la barra,
+    // la dona, las tarjetas de saldo). Si el spec fuera solo cabecera, se
+    // dibuja esa.
+    const ui = entry.spec?.ui ?? [];
+    const visual = ui.filter((c) => c?.type !== 'header');
+    window.renderGeneratedUi(inner, (visual.length ? visual : ui).slice(0, PREVIEW_COMPONENTS), { preview: true });
     preview.append(inner);
     return preview;
   }
 
-  function buildCard(entry, index) {
-    const card = el('li');
-    const button = el('button', 'car-card');
+  // ---------- Línea de tiempo ----------
+
+  // Etiqueta del grupo: "Hoy" y "Ayer" se leen mejor que la fecha completa; de
+  // ahí para atrás la fecha, con año solo si no es el actual.
+  function dayLabel(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const startOf = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((startOf(new Date()) - startOf(date)) / 86400000);
+    if (days <= 0) return window.I18N.t('timeline.today');
+    if (days === 1) return window.I18N.t('timeline.yesterday');
+    const opts = { day: 'numeric', month: 'long' };
+    if (date.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+    return date.toLocaleDateString(window.I18N.locale(), opts);
+  }
+
+  function buildTimelineItem(entry, index) {
+    const button = el('button', 'tl-item');
     button.type = 'button';
     button.style.setProperty('--i', String(index));
     button.dataset.id = entry.id;
     if (entry.id === state.activeId) button.classList.add('is-active');
 
-    const body = el('div', 'car-body');
-    body.append(el('div', 'car-title', entry.title));
-    const meta = el('div', 'car-meta');
+    const main = el('span', 'tl-main');
+    main.append(el('span', 'tl-title', entry.title));
+    const meta = el('span', 'tl-meta');
     meta.append(el('span', 'folder-chip', folderLabel(entry.folder)));
-    meta.append(el('span', null, window.I18N.fmtWhen(entry.createdAt)));
-    body.append(meta);
+    meta.append(el('span', 'tl-time', window.I18N.fmtTime(entry.createdAt)));
+    main.append(meta);
 
-    button.append(buildPreview(entry), body);
+    button.append(buildPreview(entry), main);
     button.addEventListener('click', () => open(entry.id));
-    card.append(button);
-    return card;
+    return button;
   }
 
-  function renderCarousel() {
-    const track = $('carTrack');
-    track.replaceChildren();
+  function buildLiveItem(title) {
+    const item = el('div', 'tl-item is-live');
+    const thumb = el('span', 'tl-thumb');
+    const dots = el('span', 'tl-live-dots');
+    dots.append(el('span'), el('span'), el('span'));
+    thumb.append(dots);
+    const main = el('span', 'tl-main');
+    main.append(el('span', 'tl-title', title));
+    main.append(el('span', 'tl-meta', window.I18N.t('agent.thinking')));
+    item.append(thumb, main);
+    return item;
+  }
+
+  function renderTimeline() {
+    const root = $('timeline');
+    root.replaceChildren();
+    const fragment = document.createDocumentFragment();
+
+    if (state.live) fragment.append(buildLiveItem(state.live));
+
     if (!state.entries.length) {
-      const empty = el('li', 'car-empty', window.I18N.t(state.search ? 'rail.noResults' : 'carousel.empty', { q: state.search }));
-      track.append(empty);
-      updateNav();
+      if (!state.live) {
+        fragment.append(el('p', 'tl-empty', window.I18N.t(state.search ? 'rail.noResults' : 'timeline.empty', { q: state.search })));
+      }
+      root.append(fragment);
       return;
     }
-    const fragment = document.createDocumentFragment();
-    state.entries.slice(0, CAROUSEL_LIMIT).forEach((entry, i) => fragment.append(buildCard(entry, i)));
-    track.append(fragment);
-    updateNav();
+
+    let currentDay = null;
+    state.entries.slice(0, TIMELINE_LIMIT).forEach((entry, i) => {
+      const day = dayLabel(entry.createdAt);
+      if (day !== currentDay) {
+        currentDay = day;
+        fragment.append(el('h2', 'tl-day', day));
+      }
+      fragment.append(buildTimelineItem(entry, i));
+    });
+    root.append(fragment);
   }
 
   function renderSkeleton() {
-    const track = $('carTrack');
-    track.replaceChildren();
-    for (let i = 0; i < 4; i++) track.append(el('li', 'car-skeleton skeleton'));
-  }
-
-  function updateNav() {
-    const viewport = $('carTrack').parentElement;
-    const atStart = viewport.scrollLeft <= 2;
-    const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 2;
-    $('carPrev').disabled = atStart;
-    $('carNext').disabled = atEnd;
-  }
-
-  function scrollCarousel(direction) {
-    const viewport = $('carTrack').parentElement;
-    const card = viewport.querySelector('.car-card');
-    // Se avanza de dos en dos tarjetas; si aún no hay ninguna, media ventana.
-    const step = card ? (card.offsetWidth + 12) * 2 : viewport.clientWidth * 0.6;
-    viewport.scrollBy({ left: direction * step, behavior: 'smooth' });
+    const root = $('timeline');
+    root.replaceChildren();
+    for (let i = 0; i < 5; i++) root.append(el('div', 'tl-skeleton skeleton'));
   }
 
   // ---------- Carpetas ----------
@@ -219,7 +289,7 @@
   // ---------- Selección ----------
 
   function markActive() {
-    for (const node of document.querySelectorAll('.car-card, .folder-item')) {
+    for (const node of document.querySelectorAll('.tl-item, .folder-item')) {
       node.classList.toggle('is-active', node.dataset.id === state.activeId);
     }
   }
@@ -241,13 +311,13 @@
       state.entries = data.entries;
       state.folders = data.folders;
       window.UI.hideBanner();
-      renderCarousel();
+      renderTimeline();
       renderFolders();
       return data;
     } catch (err) {
       console.error('[history]', err);
       state.entries = [];
-      renderCarousel();
+      renderTimeline();
       window.UI.banner(window.I18N.t('error.history'), () => load());
       return null;
     }
@@ -261,32 +331,18 @@
     if (folder) folder.total += 1;
     state.activeId = entry.id;
 
-    renderCarousel();
+    renderTimeline();
     renderFolders();
     bumpCount(entry.folder);
-    $('carTrack').parentElement.scrollTo({ left: 0, behavior: 'smooth' });
+    $('panelHistory').scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Tarjeta fantasma al frente del carrusel mientras el agente construye: deja
-  // claro que la visualización en curso va a terminar ahí.
+  // Entrada fantasma arriba de la línea de tiempo mientras el agente construye:
+  // deja claro que la visualización en curso va a terminar ahí.
   function setLive(on, title) {
-    const track = $('carTrack');
-    track.querySelector('.car-live')?.closest('li')?.remove();
-    if (!on) return;
-    track.querySelector('.car-empty')?.remove();
-    const item = el('li');
-    const card = el('div', 'car-card is-live car-live');
-    const preview = el('div', 'car-preview');
-    const dots = el('div', 'car-live-dots');
-    dots.append(el('span'), el('span'), el('span'));
-    preview.append(dots);
-    const body = el('div', 'car-body');
-    body.append(el('div', 'car-title', title));
-    body.append(el('div', 'car-meta', window.I18N.t('agent.thinking')));
-    card.append(preview, body);
-    item.append(card);
-    track.prepend(item);
-    track.parentElement.scrollTo({ left: 0, behavior: 'smooth' });
+    state.live = on ? title : null;
+    renderTimeline();
+    if (on) $('panelHistory').scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function bumpCount(folderId) {
@@ -321,12 +377,13 @@
 
   function init({ onOpen } = {}) {
     state.onOpen = onOpen;
-    $('carPrev').addEventListener('click', () => scrollCarousel(-1));
-    $('carNext').addEventListener('click', () => scrollCarousel(1));
-    $('carTrack').parentElement.addEventListener('scroll', updateNav, { passive: true });
-    window.addEventListener('resize', () => { updateNav(); resizeOpenDrawer(); });
+    wireTabs();
     wireSearch();
+    window.addEventListener('resize', resizeOpenDrawer);
   }
 
-  window.History = { init, load, add, open, setLive, folderLabel, get entries() { return state.entries; } };
+  window.History = {
+    init, load, add, open, setLive, folderLabel, selectTab,
+    get entries() { return state.entries; },
+  };
 })();

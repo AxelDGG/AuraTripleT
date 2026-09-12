@@ -18,17 +18,65 @@
     'state.busy': 'Trabajando…',
     'state.offline': 'Agente sin conexión',
 
-    'history.title': 'HISTORIAL DE VISUALIZACIÓN FINANCIERA INTELIGENTE',
-    'carousel.prev': 'Ver anteriores',
-    'carousel.next': 'Ver siguientes',
-    'carousel.empty': 'Todavía no hay visualizaciones. Pídele algo al agente y aparecerán aquí.',
-    'carousel.loading': 'Cargando historial…',
+    // Sugerencias de visualización (fila superior del espacio de trabajo)
+    'suggest.title': 'VISUALIZACIONES SUGERIDAS',
+    'suggest.prev': 'Ver anteriores',
+    'suggest.next': 'Ver siguientes',
+
+    'suggest.gastos.title': 'Gráfica de gastos',
+    'suggest.gastos.hint': 'Por categoría, este mes',
+    'suggest.gastos.prompt': 'Hazme una gráfica de mis gastos por categoría de este mes, con las categorías principales y cuánto subió o bajó cada una.',
+
+    'suggest.ganancias.title': 'Gráfica de ganancias',
+    'suggest.ganancias.hint': 'Ingresos contra egresos',
+    'suggest.ganancias.prompt': 'Muéstrame una gráfica de mis ingresos contra mis egresos de los últimos meses y cuánto me quedó de ganancia neta en cada uno.',
+
+    'suggest.flujo.title': 'Flujo de efectivo',
+    'suggest.flujo.hint': 'Últimos 6 meses',
+    'suggest.flujo.prompt': 'Grafica mi flujo de efectivo de los últimos 6 meses: entradas, salidas y saldo al cierre de cada mes.',
+
+    'suggest.reparto.title': 'Reparto de mi dinero',
+    'suggest.reparto.hint': 'Distribución entre cuentas',
+    'suggest.reparto.prompt': 'Muéstrame en una gráfica cómo está repartido mi dinero entre todas mis cuentas, con el porcentaje de cada una.',
+
+    'suggest.comparativo.title': 'Comparativo mensual',
+    'suggest.comparativo.hint': 'Este mes contra el anterior',
+    'suggest.comparativo.prompt': 'Compara mi gasto de este mes contra el mes pasado por categoría y señala dónde está la mayor diferencia.',
+
+    'suggest.saldos.title': 'Saldo de mis cuentas',
+    'suggest.saldos.hint': 'Todas mis cuentas de un vistazo',
+    'suggest.saldos.prompt': 'Muéstrame el saldo de todas mis cuentas con sus detalles.',
+
+    'suggest.tarjeta.title': 'Estado de mi tarjeta',
+    'suggest.tarjeta.hint': 'Saldo, límite y fecha de pago',
+    'suggest.tarjeta.prompt': '¿Cuánto debo de mi tarjeta de crédito, cuánto me queda de límite y cuándo tengo que pagar?',
+
+    'suggest.credito.title': 'Simular un crédito',
+    'suggest.credito.hint': 'Mensualidad y tasa',
+    'suggest.credito.prompt': 'Simula un crédito automotriz de 350000 pesos a 48 meses y muéstrame la mensualidad y el total a pagar.',
+
+    'suggest.fx.title': 'Tipo de cambio',
+    'suggest.fx.hint': 'Dólar de hoy',
+    'suggest.fx.prompt': 'Muéstrame el tipo de cambio de hoy',
+
+    // Riel derecho
+    'rail.tab.history': 'HISTORIAL',
+    'rail.tab.collection': 'COLECCIÓN',
+    'timeline.today': 'Hoy',
+    'timeline.yesterday': 'Ayer',
+    'timeline.empty': 'Todavía no hay visualizaciones. Pídele algo al agente y aparecerán aquí.',
+
+    'folder.transacciones': 'Transacciones',
+    'folder.promociones': 'Promociones',
+    'folder.movimientos': 'Movimientos',
+    'folder.gastos': 'Gastos',
+    'folder.otros': 'Otros',
 
     'composer.placeholder': 'Escribe o habla con el agente Banorte…',
     'composer.send': 'Enviar',
     'composer.mic': 'Dictar por voz',
 
-    'rail.search': 'BUSCAR POR TITULO',
+    'rail.search': 'BUSCAR…',
     'rail.clear': 'Limpiar búsqueda',
     'rail.noResults': 'Sin resultados para "{q}"',
     'folder.empty': 'Esta carpeta todavía está vacía',
@@ -36,6 +84,8 @@
 
     'canvas.title': '¿Qué quieres ver hoy?',
     'canvas.text': 'El agente consulta tus datos bancarios con herramientas MCP, construye la interfaz al instante y la archiva en la carpeta que mejor le corresponde.',
+    'canvas.hint': 'Empieza con una visualización sugerida de arriba, o escribe tu pregunta abajo.',
+    'canvas.expand': 'Ver en grande',
 
     'agent.thinking': 'Pensando…',
     'agent.tool': 'Consultando {tool}…',
@@ -52,20 +102,6 @@
     'exit.confirm': 'Sesión cerrada (demo).',
     'top.location.toast': 'Sucursal más cercana: Monterrey Centro.',
     'top.contact.toast': 'Atención Banorte: 800 BANORTE (800 226 6783).',
-
-    'chip.spending': '📊 ¿En qué estoy gastando más?',
-    'chip.accounts': '🏦 Saldo de mis cuentas',
-    'chip.transfer': '💸 Hacer una transferencia',
-    'chip.credit': '🚗 Simular un crédito automotriz',
-    'chip.card': '🧾 Estado de mi tarjeta',
-    'chip.fx': '💱 Tipo de cambio de hoy',
-
-    'prompt.spending': '¿En qué estoy gastando más? Muéstrame una gráfica de gastos por categoría y las principales.',
-    'prompt.accounts': 'Muéstrame el saldo de todas mis cuentas con sus detalles.',
-    'prompt.transfer': 'Quiero hacer una transferencia',
-    'prompt.credit': 'Simula un crédito automotriz de 350000 pesos a 48 meses',
-    'prompt.card': '¿Cuánto debo de mi tarjeta de crédito y cuándo tengo que pagar?',
-    'prompt.fx': 'Muéstrame el tipo de cambio de hoy',
 
     'voice.denied': 'Permite el acceso al micrófono en tu navegador para dictar.',
     'voice.noSpeech': 'No se detectó voz. Intenta de nuevo.',
@@ -111,11 +147,17 @@
     return date.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
   }
 
+  function fmtTime(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
   function fmtDateTime(iso) {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleString(LOCALE, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
-  window.I18N = { t, apply, fmtMoney, fmtWhen, fmtDateTime, locale: () => LOCALE, get lang() { return LANG; } };
+  window.I18N = { t, apply, fmtMoney, fmtWhen, fmtTime, fmtDateTime, locale: () => LOCALE, get lang() { return LANG; } };
 })();

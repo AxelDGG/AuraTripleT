@@ -1,19 +1,11 @@
 // Conversación con el agente: manda el prompt, consume el stream SSE y pinta la
 // interfaz generada en el lienzo. Cuando la API confirma que la archivó (evento
-// `history`), la tarjeta entra al carrusel y a su carpeta.
+// `history`), la entrada aparece en la línea de tiempo del riel y en su carpeta.
 (function () {
   const $ = (id) => document.getElementById(id);
   const { el } = window.UI;
 
   const HISTORY_LIMIT = 12;
-  const CHIPS = [
-    ['chip.spending', 'prompt.spending'],
-    ['chip.accounts', 'prompt.accounts'],
-    ['chip.transfer', 'prompt.transfer'],
-    ['chip.credit', 'prompt.credit'],
-    ['chip.card', 'prompt.card'],
-    ['chip.fx', 'prompt.fx'],
-  ];
 
   const state = { busy: false, offline: false, model: null, history: [] };
 
@@ -44,14 +36,11 @@
     const orb = el('div', 'orb');
     orb.append(window.ICONS.el('sparkle'));
     empty.append(orb, el('h2', null, t('canvas.title')), el('p', null, t('canvas.text')));
-    const chips = el('div', 'chips');
-    for (const [label, prompt] of CHIPS) {
-      const chip = el('button', 'chip', t(label));
-      chip.type = 'button';
-      chip.addEventListener('click', () => send(t(prompt)));
-      chips.append(chip);
-    }
-    empty.append(chips);
+    // Los atajos viven arriba, en las tarjetas de sugerencia: aquí solo se
+    // apunta hacia ellas para no repetir la misma lista dos veces en pantalla.
+    const hint = el('p', 'canvas-hint');
+    hint.append(window.ICONS.el('chevron'), el('span', null, t('canvas.hint')));
+    empty.append(hint);
     canvas.replaceChildren(empty);
   }
 
@@ -81,6 +70,20 @@
     const meta = el('div', 'canvas-meta');
     if (folder) meta.append(el('span', 'folder-chip', window.History.folderLabel(folder)));
     if (when) meta.append(el('span', 'muted', window.I18N.fmtWhen(when)));
+    // Las gráficas densas se aprecian mejor sin el riel al lado: el mismo spec
+    // se vuelve a pintar en el overlay, a todo el ancho del diálogo.
+    const expand = el('button', 'canvas-expand');
+    expand.type = 'button';
+    expand.title = window.I18N.t('canvas.expand');
+    expand.setAttribute('aria-label', window.I18N.t('canvas.expand'));
+    expand.append(window.ICONS.el('expand'));
+    expand.addEventListener('click', () => window.UI.openOverlay({
+      title,
+      folderLabel: folder ? window.History.folderLabel(folder) : '',
+      meta: when ? window.I18N.fmtDateTime(when) : (message ?? ''),
+      spec: { ui: ui ?? [] },
+    }));
+    meta.append(expand);
     head.append(meta);
     canvas.append(head);
 
@@ -137,7 +140,7 @@
               if (fromVoice) window.Voice?.speak(event.message, window.I18N.locale());
               break;
             case 'history':
-              // La API ya la guardó en Tiger: entra al carrusel y a su carpeta.
+              // La API ya la guardó en Tiger: entra a la línea de tiempo y a su carpeta.
               window.History.setLive(false);
               window.History.add(event.entry);
               window.UI.toast(t('agent.saved', { folder: window.History.folderLabel(event.entry.folder) }), 'success');

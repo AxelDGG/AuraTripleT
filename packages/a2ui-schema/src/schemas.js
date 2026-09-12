@@ -6,7 +6,26 @@
 
 import { z } from 'zod';
 
-export const CHART_TYPES = ['bar', 'line', 'pie', 'doughnut'];
+// Tipos de gráfica. Tomamos el vocabulario de Bklit UI (bklit.com/docs) para
+// que el contrato nombre las gráficas igual que la librería de referencia.
+export const CHART_TYPES = [
+  'bar', 'stacked_bar', 'horizontal_bar', 'line', 'area', 'composed', 'pie', 'doughnut',
+  'ring', 'gauge', 'radar', 'scatter', 'funnel', 'heatmap', 'candlestick', 'profit_loss',
+];
+export const CHART_FORMATS = ['currency', 'number', 'percent', 'compact'];
+export const SERIES_KINDS = ['bar', 'line', 'area'];
+
+// El modelo escribe el tipo en inglés, en español o con el nombre de otra
+// librería; se traduce antes de validar en vez de caer al bar por defecto.
+export const CHART_ALIASES = {
+  donut: 'doughnut', dona: 'doughnut', pastel: 'pie', column: 'bar', columna: 'bar',
+  barras: 'bar', barh: 'horizontal_bar', horizontalbar: 'horizontal_bar',
+  stacked: 'stacked_bar', apilada: 'stacked_bar', apiladas: 'stacked_bar',
+  progress_ring: 'ring', anillo: 'ring', medidor: 'gauge', velas: 'candlestick',
+  embudo: 'funnel', calor: 'heatmap', mapa_calor: 'heatmap', dispersion: 'scatter',
+  mixed: 'composed', mixta: 'composed', combinada: 'composed', pnl: 'profit_loss',
+};
+
 export const ALERT_LEVELS = ['info', 'success', 'warning', 'error'];
 export const ACCOUNT_KINDS = ['checking', 'savings', 'credit'];
 export const TRENDS = ['up', 'down', 'neutral'];
@@ -18,6 +37,14 @@ const requiredText = text.catch('');
 // Número tolerante: acepta "1200" pero no booleanos ni null (caen a 0).
 const number = z.union([z.number(), z.string()]).pipe(z.coerce.number()).catch(0);
 const enumOr = (values, fallback) => z.enum(values).catch(fallback);
+// Opcionales de verdad: lo que no viene se queda fuera, y lo que viene roto
+// se descarta en vez de convertirse en un 0 o un false que el renderer dibuje.
+const optionalNumber = z.union([z.number(), z.string()]).pipe(z.coerce.number()).optional().catch(undefined);
+const optionalBool = z
+  .union([z.boolean(), z.string()])
+  .transform((v) => v === true || v === 'true')
+  .optional()
+  .catch(undefined);
 
 // Lista de objetos: descarta entradas que no son objetos y, si no es lista, queda vacía.
 const objectList = (schema) =>
@@ -34,6 +61,7 @@ const textList = z
     z.array(text),
   )
   .catch([]);
+
 
 export const HeaderSchema = z
   .object({ type: z.literal('header'), title: requiredText, subtitle: optionalText, badge: optionalText })
@@ -63,22 +91,56 @@ export const BalanceCardsSchema = z
   .object({ type: z.literal('balance_cards'), accounts: objectList(AccountCardSchema) })
   .passthrough();
 
+// Un punto puede ser un número (serie normal), {x,y} (dispersión) o
+// {o,h,l,c} (velas); el objeto se conserva tal cual y el renderer lo lee.
+const DataPointSchema = z.union([z.object({}).passthrough(), number]);
+
 const DatasetSchema = z
   .object({
     label: optionalText,
-    data: z.preprocess((v) => (Array.isArray(v) ? v : []), z.array(number)),
+    data: z.preprocess((v) => (Array.isArray(v) ? v : []), z.array(DataPointSchema)),
+    // Solo aplican en gráficas mixtas y de doble eje.
+    kind: z.enum(SERIES_KINDS).optional().catch(undefined),
+    axis: z.enum(['left', 'right']).optional().catch(undefined),
+    color: optionalText,
   })
   .passthrough();
 
-export const ChartSchema = z
-  .object({
-    type: z.literal('chart'),
-    chartType: enumOr(CHART_TYPES, 'bar'),
-    title: optionalText,
-    labels: textList,
-    datasets: objectList(DatasetSchema),
-  })
-  .passthrough();
+// Acepta series como alias de datasets y traduce el tipo antes de validar.
+export const ChartSchema = z.preprocess(
+  (c) => {
+    if (!c || typeof c !== 'object') return c;
+    const raw = String(c.chartType ?? '').toLowerCase().trim();
+    return { ...c, chartType: CHART_ALIASES[raw] ?? raw, datasets: c.datasets ?? c.series };
+  },
+  z
+    .object({
+      type: z.literal('chart'),
+      chartType: enumOr(CHART_TYPES, 'bar'),
+      title: optionalText,
+      subtitle: optionalText,
+      caption: optionalText,
+      labels: textList,
+      datasets: objectList(DatasetSchema),
+      // Cómo se leen las cifras en ejes, tooltips y etiquetas.
+      format: enumOr(CHART_FORMATS, 'currency'),
+      unit: optionalText,
+      // gauge y ring se describen con un valor sobre un máximo, no con series.
+      value: optionalNumber,
+      max: optionalNumber,
+      min: optionalNumber,
+      label: optionalText,
+      valueLabel: optionalText,
+      // Línea de referencia (presupuesto, meta, promedio).
+      target: optionalNumber,
+      targetLabel: optionalText,
+      stacked: optionalBool,
+      fill: optionalBool,
+      legend: optionalBool,
+      colors: textList.optional().catch(undefined),
+    })
+    .passthrough(),
+);
 
 export const TableSchema = z
   .object({

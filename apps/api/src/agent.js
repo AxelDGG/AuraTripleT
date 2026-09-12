@@ -2,7 +2,12 @@
 // MCP y produce especificaciones de UI (Norte UI Spec) que los clientes
 // renderizan en tiempo real.
 
-import { DEFAULT_FOLDER, componentsPromptSection, foldersPromptSection } from '@norte/a2ui-schema';
+import {
+  DEFAULT_FOLDER,
+  chartsPromptSection,
+  componentsPromptSection,
+  foldersPromptSection,
+} from '@norte/a2ui-schema';
 import { listToolsForLlm, callMcpTool } from './mcp-client.js';
 import { getLlmProvider } from './providers/index.js';
 import { parseUiJson } from './ui-spec.js';
@@ -23,6 +28,8 @@ REGLAS:
 
 ${componentsPromptSection()}
 
+${chartsPromptSection()}
+
 ${foldersPromptSection()}
 El "title" es como se guarda la visualización en el historial: concreto y buscable ("Gastos de agosto", "Transferencia a Juan Pérez"), nunca genérico ("Resultado", "Tu consulta").
 
@@ -32,7 +39,15 @@ FLUJOS INTERACTIVOS:
 - NUNCA llames transfer_funds a partir de texto libre, aunque el usuario dé todos los datos: primero genera el formulario (prellenado con los valores que ya te dio) para que lo confirme. El sistema solo autoriza transfer_funds tras un envío "[form:transfer_funds]".
 - Para transfer_funds ejecutado con éxito muestra: alert success con folio, y balance_cards con el nuevo saldo.
 - Si el usuario pide simular un crédito sin datos completos, genera un form con action "simulate_credit" (productId select con CRED-AUTO/CRED-HIPO/CRED-PERS, amount number, months number).
-- Para gráficas de gastos usa get_spending_by_category; para tendencias usa get_monthly_cashflow.
+
+VISUALIZACIÓN DE DATOS (qué herramienta alimenta qué gráfica):
+- get_spending_by_category: doughnut con 6 categorías o menos, horizontal_bar ordenada si son más. Si el usuario tiene presupuesto, manda "target".
+- get_monthly_cashflow: composed con barras de ingreso y gasto más una línea de flujo neto; si lo importante es el neto y cruza el cero, profit_loss.
+- get_transactions: transaction_list para el detalle. Si preguntan por patrones, heatmap (día de la semana × semana) o scatter (monto contra frecuencia).
+- get_portfolio / get_investments: doughnut de composición y horizontal_bar de rendimiento por posición.
+- get_portfolio_performance: area para el valor acumulado; candlestick solo si los datos traen apertura, máximo, mínimo y cierre.
+- Uso de la línea de crédito, avance de una meta de ahorro o salud financiera: gauge o ring con "value" y "max".
+- Decide el chartType ANTES de escribir los datos, y no repitas la misma cifra en dos gráficas de la misma vista.
 
 Los montos negativos son cargos. Formatea montos en el message como pesos mexicanos.`;
 

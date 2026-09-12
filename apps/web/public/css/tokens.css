@@ -121,3 +121,26 @@ svg { display: block; }
 :root[data-motion='reduced'] *, :root[data-motion='reduced'] *::before, :root[data-motion='reduced'] *::after {
   animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important;
 }
+
+/* ===== Tokens de gráficas (vocabulario Bklit UI, paleta Banorte) =====
+   Bklit expone su paleta como --chart-1..--chart-5 más --chart-grid y
+   --chart-background; replicamos esa interfaz para que el motor de gráficas
+   sea intercambiable, extendida a 8 series porque nuestras categorías de gasto
+   pasan de cinco. El rojo institucional siempre es la serie 1. */
+:root {
+  --chart-1: #eb0029;
+  --chart-2: #1b1b20;
+  --chart-3: #e2758a;
+  --chart-4: #1f5fbf;
+  --chart-5: #b8770a;
+  --chart-6: #0f8f4d;
+  --chart-7: #6e6e7a;
+  --chart-8: #9e0018;
+
+  --chart-grid: rgba(20, 20, 28, 0.08);
+  --chart-axis: #6e6e7a;
+  --chart-background: #f4f4f7;
+  --chart-track: #e9e9ee;
+  --chart-positive: #0f8f4d;
+  --chart-negative: #eb0029;
+}

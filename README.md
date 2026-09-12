@@ -264,8 +264,8 @@ AuraTripleT/
 │   │   └── tests/             agent · routes · history · providers · ui-spec · mcp (e2e)
 │   ├── web/                   @norte/web · UI web vanilla (la sirve @norte/api)
 │   │   └── public/            index.html · renderer.js (Norte UI Spec → DOM)
-│   │                          js/: app · agent (SSE) · history (carrusel + carpetas) · ui · api · voice · i18n · icons
-│   │                          css/: tokens · shell · carousel · rail · generated
+│   │                          js/: app · agent (SSE) · history (línea de tiempo + carpetas) · suggest · ui · api · voice · i18n · icons
+│   │                          css/: tokens · shell · suggest · rail · generated
 │   └── mobile/                (placeholder) React Native + widget Android
 ├── packages/
 │   ├── mcp-server/            @norte/mcp-server · servidor MCP banorte-banking

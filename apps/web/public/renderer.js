@@ -12,13 +12,8 @@
     vivienda: '🏢', ahorro: '🐷', transferencias: '↔️', 'pagos tdc': '💳',
   };
 
-  // Paleta de gráficas: el rojo Banorte manda y el resto son acentos neutros
-  // que se leen bien sobre blanco sin competir con la marca.
-  const BANORTE_PALETTE = ['#eb0029', '#1b1b20', '#e2758a', '#6e6e7a', '#9e0018', '#b8770a', '#1f5fbf', '#0f8f4d', '#c8001f', '#a8a8b4', '#7a0012', '#d4a0a8'];
-  const AXIS_TEXT = '#6e6e7a';
-  const GRID_LINE = 'rgba(20, 20, 28, 0.08)';
-  // Altura del mini-gráfico estático de las miniaturas, en unidades del viewBox.
-  const MINI_H = 60;
+  // La paleta, los ejes y el dibujo de toda gráfica viven en js/charts.js,
+  // que expone window.NorteCharts. Aquí solo se arma la tarjeta que la envuelve.
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -86,54 +81,17 @@
       return grid;
     },
 
+    // El dibujo lo resuelve NorteCharts según chartType; aquí va la tarjeta.
     chart(c) {
-      const card = el('div', 'card gen');
+      const card = el('div', 'card c-chart gen');
       if (c.title) card.appendChild(el('h3', null, c.title));
-      const wrap = el('div', 'chart-wrap');
-      const canvas = document.createElement('canvas');
-      wrap.appendChild(canvas);
-      card.appendChild(wrap);
-      const type = ['bar', 'line', 'pie', 'doughnut'].includes(c.chartType) ? c.chartType : 'bar';
-      const isCircular = type === 'pie' || type === 'doughnut';
-      const datasets = (c.datasets ?? []).map((d, i) => ({
-        label: d.label ?? `Serie ${i + 1}`,
-        data: (d.data ?? []).map(Number),
-        backgroundColor: isCircular
-          ? BANORTE_PALETTE
-          : BANORTE_PALETTE[i % BANORTE_PALETTE.length] + (type === 'line' ? '22' : 'D9'),
-        borderColor: isCircular ? '#ffffff' : BANORTE_PALETTE[i % BANORTE_PALETTE.length],
-        borderWidth: 2,
-        borderRadius: type === 'bar' ? 7 : 0,
-        tension: 0.35,
-        fill: type === 'line',
-      }));
-      requestAnimationFrame(() => {
-        if (!canvas.isConnected) return;
-        new Chart(canvas, {
-          type,
-          data: { labels: c.labels ?? [], datasets },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: isCircular || datasets.length > 1,
-                position: 'bottom',
-                labels: { font: { family: 'Manrope', size: 12 }, color: AXIS_TEXT, boxWidth: 14, padding: 14 },
-              },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => ` ${ctx.dataset.label ?? ctx.label}: ${fmtMoney(ctx.parsed.y ?? ctx.parsed)}`,
-                },
-              },
-            },
-            scales: isCircular ? {} : {
-              y: { ticks: { font: { family: 'Manrope' }, color: AXIS_TEXT, callback: (v) => fmtMoney(v) }, grid: { color: GRID_LINE } },
-              x: { ticks: { font: { family: 'Manrope' }, color: AXIS_TEXT }, grid: { display: false } },
-            },
-          },
-        });
-      });
+      if (c.subtitle) card.appendChild(el('p', 'ch-sub', c.subtitle));
+      if (window.NorteCharts) {
+        card.appendChild(window.NorteCharts.create(c));
+      } else {
+        card.appendChild(el('p', 'ch-sub', 'No se pudo cargar el motor de gráficas.'));
+      }
+      if (c.caption) card.appendChild(el('div', 'ch-cap', c.caption));
       return card;
     },
 
@@ -266,36 +224,13 @@
     return card;
   };
 
-  // Gráfica estática para las miniaturas del carrusel: dibuja las barras con la
-  // forma real de los datos, en SVG. Instanciar Chart.js por tarjeta costaría un
-  // canvas y una animación por cada una del historial, y a escala 0.32 el
-  // detalle no se lee de todos modos.
+  // Miniatura del carrusel: silueta estática en SVG, sin Chart.js ni animación.
+  // Cada tipo conserva su forma (barras, línea, arco, celdas) para que la
+  // tarjeta del historial se reconozca a escala 0.32.
   function miniChart(c) {
     const card = el('div', 'card gen');
     if (c.title) card.appendChild(el('h3', null, c.title));
-    const values = (c.datasets?.[0]?.data ?? []).map(Number).filter(Number.isFinite).slice(0, 12);
-    const max = Math.max(1, ...values.map(Math.abs));
-    const gap = 6;
-    const barW = 22;
-    const width = Math.max(1, values.length) * (barW + gap);
-
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', `0 0 ${width} ${MINI_H}`);
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', String(MINI_H * 2));
-    values.forEach((value, i) => {
-      const height = Math.max(3, (Math.abs(value) / max) * (MINI_H - 4));
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', String(i * (barW + gap)));
-      rect.setAttribute('y', String(MINI_H - height));
-      rect.setAttribute('width', String(barW));
-      rect.setAttribute('height', String(height));
-      rect.setAttribute('rx', '3');
-      rect.setAttribute('fill', BANORTE_PALETTE[i % BANORTE_PALETTE.length]);
-      svg.appendChild(rect);
-    });
-    card.appendChild(svg);
+    if (window.NorteCharts) card.appendChild(window.NorteCharts.createPreview(c));
     return card;
   }
 

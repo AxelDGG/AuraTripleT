@@ -5,7 +5,14 @@
 import { componentSchemas } from './schemas.js';
 import { DEFAULT_FOLDER, normalizeFolder } from './folders.js';
 
-export { COMPONENT_CATALOG, COMPONENT_TYPES, SPEC_VERSION, componentsPromptSection } from './catalog.js';
+export {
+  CHART_GUIDE,
+  COMPONENT_CATALOG,
+  COMPONENT_TYPES,
+  SPEC_VERSION,
+  chartsPromptSection,
+  componentsPromptSection,
+} from './catalog.js';
 export {
   DEFAULT_FOLDER,
   FOLDERS,

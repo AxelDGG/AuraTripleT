@@ -1,10 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CHART_GUIDE,
+  CHART_TYPES,
   COMPONENT_TYPES,
   COMPONENT_CATALOG,
   DEFAULT_FOLDER,
   FOLDER_IDS,
+  chartsPromptSection,
   componentsPromptSection,
   foldersPromptSection,
   normalizeComponent,
@@ -84,9 +87,10 @@ test('form: un inputType inválido cae a text y una action faltante recibe un va
 });
 
 test('chart: acota chartType a los valores conocidos y coacciona los datos a números', () => {
+  // `treemap` existe en otras librerías pero no en nuestro catálogo: cae al default.
   const chart = normalizeComponent({
     type: 'chart',
-    chartType: 'radar',
+    chartType: 'treemap',
     labels: ['Comida', 12],
     datasets: [{ label: 'Gasto', data: ['1200', 300, 'abc'] }],
   });
@@ -184,4 +188,73 @@ test('el título se recorta a 80 caracteres con elipsis', () => {
   const spec = normalizeUiSpec({ message: 'm', title: largo, ui: [] });
   assert.equal(spec.title.length, 80);
   assert.ok(spec.title.endsWith('…'));
+});
+
+test('el catálogo de gráficas cubre el vocabulario de Bklit y el prompt lo expone', () => {
+  assert.deepEqual(CHART_TYPES, CHART_GUIDE.map((c) => c.type));
+  const section = chartsPromptSection();
+  for (const chart of CHART_GUIDE) assert.ok(section.includes(`"${chart.type}"`), chart.type);
+  // Las tres decisiones que más se equivocan sin guía explícita.
+  assert.ok(section.includes('CÓMO ELEGIR LA GRÁFICA:'));
+  assert.ok(section.includes('gauge'));
+  assert.ok(section.includes('"target"'));
+});
+
+test('los alias de chartType se traducen en vez de caer a bar', () => {
+  const as = (chartType) => normalizeComponent({ type: 'chart', chartType }).chartType;
+  assert.equal(as('dona'), 'doughnut');
+  assert.equal(as('DONUT'), 'doughnut');
+  assert.equal(as('apiladas'), 'stacked_bar');
+  assert.equal(as('medidor'), 'gauge');
+  assert.equal(as('velas'), 'candlestick');
+  // Lo que no existe ni tiene alias sigue cayendo al default seguro.
+  assert.equal(as('sankey'), 'bar');
+  assert.equal(as(undefined), 'bar');
+});
+
+test('chart acepta las formas de datos de cada familia de gráfica', () => {
+  const scatter = normalizeComponent({
+    type: 'chart', chartType: 'scatter',
+    datasets: [{ label: 'Compras', data: [{ x: 3, y: 120 }, { x: 8, y: 640 }] }],
+  });
+  assert.deepEqual(scatter.datasets[0].data[1], { x: 8, y: 640 });
+
+  const candles = normalizeComponent({
+    type: 'chart', chartType: 'candlestick',
+    datasets: [{ data: [{ o: 10, h: 14, l: 9, c: 13 }] }],
+  });
+  assert.equal(candles.datasets[0].data[0].h, 14);
+
+  // Números como texto siguen normalizándose; el objeto se conserva íntegro.
+  const bars = normalizeComponent({ type: 'chart', chartType: 'bar', datasets: [{ data: ['1200', 3] }] });
+  assert.deepEqual(bars.datasets[0].data, [1200, 3]);
+});
+
+test('gauge y ring se describen con value/max y sin series', () => {
+  const gauge = normalizeComponent({
+    type: 'chart', chartType: 'gauge', value: '68', max: 100, format: 'percent', label: 'Uso de tu línea',
+  });
+  assert.equal(gauge.value, 68);
+  assert.equal(gauge.max, 100);
+  assert.equal(gauge.format, 'percent');
+  assert.deepEqual(gauge.datasets, []);
+  // Los opcionales que no vienen no se inventan: el renderer distingue ausencia de cero.
+  assert.equal(gauge.target, undefined);
+  assert.equal(gauge.stacked, undefined);
+  assert.equal(gauge.legend, undefined);
+});
+
+test('chart conserva las opciones de presentación y usa currency por defecto', () => {
+  const chart = normalizeComponent({
+    type: 'chart', chartType: 'composed', labels: ['Ene'],
+    series: [{ label: 'Gasto', data: [10], kind: 'bar' }, { label: 'Meta', data: [12], kind: 'line', axis: 'right' }],
+    target: '15000', targetLabel: 'Presupuesto', stacked: 'true', subtitle: 'vs. mes anterior', caption: 'Fuente: MCP',
+  });
+  assert.equal(chart.format, 'currency');
+  assert.equal(chart.datasets.length, 2, 'series debe funcionar como alias de datasets');
+  assert.equal(chart.datasets[1].axis, 'right');
+  assert.equal(chart.target, 15000);
+  assert.equal(chart.stacked, true);
+  assert.equal(chart.subtitle, 'vs. mes anterior');
+  assert.equal(chart.caption, 'Fuente: MCP');
 });

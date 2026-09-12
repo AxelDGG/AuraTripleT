@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/shell.css" />
-  <link rel="stylesheet" href="css/carousel.css" />
+  <link rel="stylesheet" href="css/suggest.css" />
   <link rel="stylesheet" href="css/rail.css" />
   <link rel="stylesheet" href="css/generated.css" />
   <script src="vendor/chart.umd.min.js"></script>
@@ -22,18 +22,19 @@
     <!-- ===== Barra superior roja ===== -->
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark" data-icon="brand"></span>
-        <span class="brand-name">BANORTE</span>
+        <img class="brand-lockup" src="img/Banorte_Header.png" alt="Banorte" width="282" height="74" />
+        <img class="brand-mark" src="img/Banorte_White.png" alt="Banorte" width="126" height="70" />
       </div>
       <nav class="topbar-nav" aria-label="Accesos">
         <button type="button" class="top-link" id="locationBtn"><i data-icon="location"></i><span data-i18n="top.location">UBICACIÓN</span></button>
-        <button type="button" class="top-link" id="contactBtn"><i data-icon="phone"></i><span data-i18n="top.contact">CONTACTO</span></button>
+        <button type="button" class="top-link" id="contactBtn"><img class="top-img" src="img/Phone_White.png" alt="" width="83" height="83" /><span data-i18n="top.contact">CONTACTO</span></button>
         <button type="button" class="top-exit" id="exitBtn"><i data-icon="logout"></i><span data-i18n="top.exit">SALIR</span></button>
       </nav>
     </header>
 
     <!-- Franja de estado: cliente y conexión con el agente -->
     <div class="statusbar">
+      <img class="who-avatar" src="img/User.png" alt="" width="69" height="69" />
       <span class="who" id="customerName">…</span>
       <span class="dot" aria-hidden="true"></span>
       <span class="agent-state" id="agentState" data-i18n="state.connecting">Conectando…</span>
@@ -46,14 +47,16 @@
     <div class="stage">
 
       <main class="workspace">
-        <section class="history" aria-labelledby="historyTitle">
-          <h1 class="history-title" id="historyTitle" data-i18n="history.title">HISTORIAL DE VISUALIZACIÓN FINANCIERA INTELIGENTE</h1>
-          <div class="carousel">
-            <button type="button" class="car-nav prev" id="carPrev" data-i18n-label="carousel.prev" aria-label="Anterior"><i data-icon="chevronLeft"></i></button>
-            <div class="car-viewport">
-              <ul class="car-track" id="carTrack" role="list"></ul>
+        <section class="suggest" aria-labelledby="suggestTitle">
+          <div class="suggest-head">
+            <h1 class="suggest-title" id="suggestTitle" data-i18n="suggest.title">VISUALIZACIONES SUGERIDAS</h1>
+            <div class="suggest-nav">
+              <button type="button" class="sg-nav" id="suggestPrev" data-i18n-label="suggest.prev" aria-label="Anterior"><i data-icon="chevronLeft"></i></button>
+              <button type="button" class="sg-nav" id="suggestNext" data-i18n-label="suggest.next" aria-label="Siguiente"><i data-icon="chevronRight"></i></button>
             </div>
-            <button type="button" class="car-nav next" id="carNext" data-i18n-label="carousel.next" aria-label="Siguiente"><i data-icon="chevronRight"></i></button>
+          </div>
+          <div class="suggest-viewport">
+            <ul class="suggest-track" id="suggestTrack" role="list"></ul>
           </div>
         </section>
 
@@ -73,14 +76,31 @@
         </form>
       </main>
 
-      <aside class="rail" aria-label="Carpetas del historial">
+      <aside class="rail" id="rail" aria-label="Historial y colección">
+        <div class="rail-tabs" role="tablist" aria-label="Vistas del historial">
+          <button type="button" class="rail-tab is-active" id="tabHistory" role="tab" aria-selected="true" aria-controls="panelHistory" data-tab="history">
+            <i data-icon="history"></i><span data-i18n="rail.tab.history">HISTORIAL</span>
+          </button>
+          <button type="button" class="rail-tab" id="tabCollection" role="tab" aria-selected="false" tabindex="-1" aria-controls="panelCollection" data-tab="collection">
+            <i data-icon="layers"></i><span data-i18n="rail.tab.collection">COLECCIÓN</span>
+          </button>
+        </div>
+
         <div class="rail-search">
           <i class="rs-icon" data-icon="search"></i>
           <input type="search" id="railSearch" autocomplete="off" maxlength="120"
-            data-i18n-placeholder="rail.search" placeholder="BUSCAR POR TITULO" />
+            data-i18n-placeholder="rail.search" placeholder="BUSCAR…" />
           <button type="button" class="rs-clear" id="railSearchClear" hidden data-i18n-label="rail.clear" aria-label="Limpiar búsqueda"><i data-icon="close"></i></button>
         </div>
-        <div class="folders" id="folders"></div>
+
+        <div class="rail-panels">
+          <div class="rail-panel is-active" id="panelHistory" role="tabpanel" aria-labelledby="tabHistory" tabindex="0">
+            <div class="timeline" id="timeline"></div>
+          </div>
+          <div class="rail-panel" id="panelCollection" role="tabpanel" aria-labelledby="tabCollection" tabindex="0" hidden>
+            <div class="folders" id="folders"></div>
+          </div>
+        </div>
       </aside>
 
     </div>
@@ -102,6 +122,7 @@
 
   <div class="toast-root" id="toastRoot" aria-live="polite"></div>
 
+  <script src="js/charts.js"></script>
   <script src="renderer.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/icons.js"></script>
@@ -109,6 +130,7 @@
   <script src="js/api.js"></script>
   <script src="js/voice.js"></script>
   <script src="js/history.js"></script>
+  <script src="js/suggest.js"></script>
   <script src="js/agent.js"></script>
   <script src="js/app.js"></script>
 </body>

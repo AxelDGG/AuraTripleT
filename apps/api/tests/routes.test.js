@@ -65,7 +65,9 @@ test('GET / sirve la UI web de @norte/web', async () => {
   const res = await fetch(`${baseUrl}/`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/html/);
-  assert.match(await res.text(), /HISTORIAL DE VISUALIZACIÓN FINANCIERA INTELIGENTE/);
+  const html = await res.text();
+  assert.match(html, /<title>Banorte · Agente de visualización financiera<\/title>/);
+  assert.match(html, /id="canvas"/);
 });
 
 test('GET /api/dashboard agrega las 12 llamadas MCP en un solo payload', async () => {
