@@ -41,7 +41,6 @@ export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR, histor
   app.use(dashboardRouter);
   app.use(customerRouter);
   app.use(creditRouter);
-  app.use(createChatRouter({ runAgent: agent }));
   app.use(voiceRouter);
   app.use(createHistoryRouter({ historyStore }));
   app.use(createChatRouter({ runAgent: agent, historyStore }));

@@ -59,7 +59,6 @@
     return rec;
   }
 
-<<<<<<< HEAD
   // Expuesto para compatibilidad con código externo que llame a Voice.listen directamente.
   function listen(opts) { return listenWebSpeech(opts); }
 
@@ -70,32 +69,6 @@
       method: 'POST',
       headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
       body: audioBlob,
-=======
-  // Dictado integrado a un input: muestra la transcripción mientras hablas y
-  // entrega el texto final. Un segundo clic detiene la escucha.
-  function dictate({ input, button, onResult }) {
-    const { t, locale } = window.I18N;
-    if (current) { stop(); return; }
-    if (!Recognition) { window.UI.toast(t('voice.unsupported'), 'error'); return; }
-    const previousPlaceholder = input.placeholder;
-    const previousValue = input.value;
-    button.classList.add('is-listening');
-    button.setAttribute('aria-pressed', 'true');
-    input.placeholder = t('voice.listening');
-    listen({
-      lang: locale(),
-      onInterim: (text) => { input.value = text; },
-      onResult: (text) => { onResult(text); },
-      onError: (code) => {
-        input.value = previousValue;
-        window.UI.toast(t(errorKey(code)), code === 'no-speech' ? 'info' : 'error');
-      },
-      onEnd: () => {
-        button.classList.remove('is-listening');
-        button.setAttribute('aria-pressed', 'false');
-        input.placeholder = previousPlaceholder;
-      },
->>>>>>> origin/main
     });
     if (!res.ok) throw new Error(`transcribe ${res.status}`);
     const { text } = await res.json();
