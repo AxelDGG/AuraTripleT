@@ -14,6 +14,7 @@ import { dashboardRouter } from './routes/dashboard.js';
 import { customerRouter } from './routes/customer.js';
 import { creditRouter } from './routes/credit.js';
 import { createChatRouter } from './routes/chat.js';
+import { voiceRouter } from './routes/voice.js';
 import { createHistoryRouter } from './routes/history.js';
 import { createHistoryStore } from './history-store.js';
 
@@ -40,6 +41,7 @@ export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR, histor
   app.use(dashboardRouter);
   app.use(customerRouter);
   app.use(creditRouter);
+  app.use(voiceRouter);
   app.use(createHistoryRouter({ historyStore }));
   app.use(createChatRouter({ runAgent: agent, historyStore }));
 
