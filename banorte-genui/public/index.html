@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0b090c" />
+  <title>Banorte Investments · Norte AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/chart.css" />
+  <link rel="stylesheet" href="css/ai-panel.css" />
+  <script src="vendor/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <div class="frame" id="frame">
+    <!-- ===== Sidebar ===== -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" data-icon="brand"></span>
+        <span class="brand-name" data-i18n="brand">Banorte Investments</span>
+      </div>
+      <nav class="nav" aria-label="Principal">
+        <button type="button" class="nav-item is-active" data-view="dashboard" aria-current="page"><i data-icon="dashboard"></i><span data-i18n="nav.dashboard">Panel</span></button>
+        <button type="button" class="nav-item" data-view="portfolio"><i data-icon="portfolio"></i><span data-i18n="nav.portfolio">Portafolio</span></button>
+        <button type="button" class="nav-item" data-view="analysis"><i data-icon="analysis"></i><span data-i18n="nav.analysis">Análisis</span></button>
+        <button type="button" class="nav-item" data-view="market"><i data-icon="market"></i><span data-i18n="nav.market">Mercado</span></button>
+        <button type="button" class="nav-item" data-view="community"><i data-icon="community"></i><span data-i18n="nav.community">Comunidad</span></button>
+      </nav>
+      <div class="nav nav-bottom">
+        <button type="button" class="nav-item" id="settingsBtn"><i data-icon="settings"></i><span data-i18n="nav.settings">Ajustes</span></button>
+        <button type="button" class="nav-item" id="supportBtn"><i data-icon="support"></i><span data-i18n="nav.support">Soporte</span></button>
+      </div>
+    </aside>
+
+    <!-- ===== Main ===== -->
+    <main class="main">
+      <header class="topbar">
+        <div class="welcome" data-anim style="--i:0">
+          <h1><span data-i18n="welcome">Bienvenida,</span> <em id="welcomeName">…</em></h1>
+          <p data-i18n="welcome.sub">Este es el resumen de tu portafolio de inversión</p>
+        </div>
+        <div class="topbar-actions" data-anim style="--i:1">
+          <div class="notif-wrap" style="position:relative">
+            <button type="button" class="icon-btn" id="bellBtn" aria-haspopup="true" aria-expanded="false" data-i18n-title="notif.title"><i data-icon="bell"></i><span class="badge-dot" id="bellDot"></span></button>
+            <div class="popover" id="notifPop" role="menu"></div>
+          </div>
+          <button type="button" class="icon-btn" id="gearBtn" data-i18n-title="settings.title"><i data-icon="settings"></i></button>
+          <button type="button" class="profile" id="profileBtn">
+            <span class="avatar" id="avatar">MF</span>
+            <span class="profile-text"><b id="profileName">…</b><small id="profileEmail">…</small></span>
+          </button>
+        </div>
+      </header>
+
+      <div class="error-banner" id="banner" hidden></div>
+
+      <div class="toolbar" data-anim style="--i:2">
+        <div class="seg" id="tabs">
+          <button type="button" class="pill" data-tab="market" data-i18n="tabs.market">Mercado</button>
+          <button type="button" class="pill is-active" data-tab="wallet" data-i18n="tabs.wallet">Cartera</button>
+          <button type="button" class="pill" data-tab="tools" data-i18n="tabs.tools">Herramientas</button>
+        </div>
+        <div class="view-title" id="viewTitle"><span id="viewTitleText"></span><small id="viewSubText"></small></div>
+        <form class="ask" id="askForm" role="search">
+          <button type="button" class="ask-mic" id="micBtn" data-i18n-title="ask.mic" aria-label="Dictar por voz" aria-pressed="false"><i data-icon="mic"></i></button>
+          <input type="text" id="askInput" data-i18n-placeholder="ask.placeholder" placeholder="Pregúntale a Norte AI" autocomplete="off" maxlength="4000" />
+          <span class="ask-kbd" aria-hidden="true">/</span>
+        </form>
+      </div>
+
+      <!-- ===== Vista: Panel ===== -->
+      <div class="view" id="view-dashboard">
+        <section class="tab-panel is-active" id="tab-wallet">
+          <div class="grid-top">
+            <div class="col-stack">
+              <article class="card card-holding" data-anim style="--i:3">
+                <div class="card-head" style="margin-bottom:0">
+                  <h3 class="card-title" data-i18n="holding.title">Valor total</h3>
+                  <div class="dropdown">
+                    <button type="button" class="pill pill-sm" id="holdingRangeBtn"><span id="holdingRangeLabel">6M</span></button>
+                    <button type="button" class="round-btn" id="holdingChevron" aria-label="Cambiar periodo" aria-expanded="false"><i data-icon="chevron"></i></button>
+                    <div class="dropdown-menu" id="holdingMenu" role="menu"></div>
+                  </div>
+                </div>
+                <div class="holding-value num skeleton" id="holdingValue">$ 00,000.00</div>
+                <div class="holding-delta skeleton" id="holdingDelta">+$0.00 (0.00%)</div>
+              </article>
+
+              <article class="card card-promo" data-anim style="--i:4">
+                <div class="promo-arc" aria-hidden="true"></div>
+                <div class="promo-glow" aria-hidden="true"></div>
+                <h3 data-i18n="promo.title">Decisiones basadas en datos</h3>
+                <p data-i18n="promo.text">Ve más allá de la intuición con insights de inversión impulsados por IA y hechos a tu medida.</p>
+                <button type="button" class="btn-glow" id="insightsBtn" data-i18n="promo.cta">Explorar insights de IA</button>
+              </article>
+            </div>
+
+            <article class="card card-watchlist" data-anim style="--i:5">
+              <div class="card-head" style="margin-bottom:10px"><h3 class="card-title" data-i18n="watchlist.title">Lista de seguimiento</h3></div>
+              <div class="filters" id="wlFilters"></div>
+              <div class="wl-list" id="wlList"></div>
+            </article>
+
+            <article class="card card-portfolio" data-anim style="--i:6">
+              <div class="card-head">
+                <h3 class="card-title" data-i18n="portfolio.title">Mi portafolio</h3>
+                <div class="card-actions">
+                  <button type="button" class="pill pill-sm" id="seeAllBtn" data-i18n="portfolio.seeAll">Ver todo</button>
+                  <button type="button" class="round-btn" id="portfolioArrow" aria-label="Abrir portafolio"><i data-icon="arrowUpRight"></i></button>
+                </div>
+              </div>
+              <div class="tiles" id="tiles"></div>
+            </article>
+          </div>
+
+          <article class="card card-performance" data-anim style="--i:7">
+            <div class="card-head">
+              <h3 class="card-title" data-i18n="perf.title">Rendimiento del portafolio</h3>
+              <div class="range-seg" id="perfRanges"></div>
+            </div>
+            <div class="chart-wrap" id="perfChart"></div>
+          </article>
+        </section>
+
+        <section class="tab-panel" id="tab-market"></section>
+        <section class="tab-panel" id="tab-tools"></section>
+      </div>
+
+      <div class="view" id="view-portfolio" hidden></div>
+      <div class="view" id="view-analysis" hidden></div>
+      <div class="view" id="view-market" hidden></div>
+      <div class="view" id="view-community" hidden></div>
+    </main>
+  </div>
+
+  <!-- ===== Panel de Norte AI ===== -->
+  <div class="ai-scrim" id="aiScrim"></div>
+  <aside class="ai-panel" id="aiPanel" aria-hidden="true" aria-label="Norte AI">
+    <div class="ai-head">
+      <div class="who">
+        <span class="ai-orb" id="aiOrb" data-icon="sparkle"></span>
+        <div><b data-i18n="ai.title">Norte AI</b><small data-i18n="ai.sub">Interfaces generadas en tiempo real vía MCP</small></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="ai-status" id="aiStatus">…</span>
+        <button type="button" class="modal-close" id="aiClose" aria-label="Cerrar"><i data-icon="close"></i></button>
+      </div>
+    </div>
+    <div class="ai-body" id="aiBody"></div>
+    <div class="ai-foot">
+      <form class="ai-input" id="aiForm">
+        <button type="button" class="ask-mic" id="aiMic" data-i18n-title="ask.mic" aria-label="Dictar por voz" aria-pressed="false"><i data-icon="mic"></i></button>
+        <input type="text" id="aiInput" data-i18n-placeholder="ai.placeholder" placeholder="Escribe una solicitud…" autocomplete="off" maxlength="4000" />
+        <button type="submit" class="ai-send" id="aiSend" aria-label="Enviar"><i data-icon="send"></i></button>
+      </form>
+      <div class="ai-hint" data-i18n="ai.hint">Enter para enviar · Esc para cerrar</div>
+    </div>
+  </aside>
+
+  <div class="modal-root" id="modalRoot"></div>
+  <div class="toast-root" id="toastRoot" aria-live="polite"></div>
+
+  <script src="renderer.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/views.js"></script>
+  <script src="js/ai-panel.js"></script>
+  <script src="js/modals.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

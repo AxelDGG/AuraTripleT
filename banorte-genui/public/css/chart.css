@@ -1,0 +1,75 @@
+/* ===== Performance chart ===== */
+.card-performance { padding-bottom: 16px; }
+.chart-wrap { position: relative; width: 100%; height: 262px; }
+.chart-wrap svg { width: 100%; height: 100%; overflow: visible; }
+.chart-wrap .axis text { fill: var(--muted); font-size: 11px; font-family: var(--font); font-weight: 500; }
+.chart-wrap .grid line { stroke: rgba(255, 255, 255, 0.05); stroke-dasharray: 2 4; }
+.chart-wrap .baseline { stroke: rgba(255, 255, 255, 0.12); }
+.chart-wrap .area { opacity: 0; transition: opacity 0.9s ease 0.35s; }
+.chart-wrap.is-drawn .area { opacity: 1; }
+.chart-wrap .line { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(242, 169, 211, 0.45)); }
+.chart-wrap .cursor-line { stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.2; stroke-dasharray: 4 5; opacity: 0; transition: opacity var(--dur-fast); }
+.chart-wrap .marker { fill: #ffd8ec; stroke: rgba(255, 255, 255, 0.9); stroke-width: 2; filter: drop-shadow(0 0 8px rgba(242, 169, 211, 0.9)); opacity: 0; transition: opacity var(--dur-fast); }
+.chart-wrap .marker-ring { fill: none; stroke: var(--rose); stroke-width: 1.5; opacity: 0; }
+.chart-wrap.has-cursor .cursor-line, .chart-wrap.has-cursor .marker { opacity: 1; }
+.chart-wrap.has-cursor .marker-ring { animation: ring 1.6s ease-out infinite; }
+@keyframes ring { 0% { r: 6; opacity: 0.8; } 100% { r: 16; opacity: 0; } }
+.chart-wrap .hit { fill: transparent; cursor: crosshair; }
+
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 150px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(22, 18, 24, 0.92);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-pop);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -110%) translateY(-14px) scale(0.96);
+  transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+}
+.chart-tip.is-visible { opacity: 1; transform: translate(-50%, -110%) translateY(-14px) scale(1); }
+.chart-tip.flip { transform: translate(-50%, 20%) scale(0.96); }
+.chart-tip.flip.is-visible { transform: translate(-50%, 20%) scale(1); }
+.chart-tip .d { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.chart-tip .d i { color: var(--muted-2); font-style: normal; letter-spacing: 2px; }
+.chart-tip .v { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; white-space: nowrap; }
+.chart-tip .v b { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.chart-tip .chip { font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 6px; background: rgba(121, 224, 163, 0.16); color: var(--green); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.chart-tip .chip.neg { background: rgba(255, 140, 159, 0.16); color: var(--red); }
+.chart-tip .chip svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+.range-seg { display: flex; gap: 8px; }
+.range-seg .pill { height: 34px; padding: 0 15px; font-size: 13px; }
+
+/* Charts (Chart.js) contenedores */
+.cjs-wrap { position: relative; height: 240px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
+
+/* Donut SVG (allocation) */
+.donut-wrap { display: flex; align-items: center; gap: 22px; min-width: 0; }
+.donut { width: 150px; height: 150px; flex-shrink: 0; }
+.donut circle.seg { fill: none; stroke-width: 18; stroke-linecap: butt; transition: stroke-dashoffset 1.1s var(--ease-out), stroke-dasharray 1.1s var(--ease-out); transform: rotate(-90deg); transform-origin: 50% 50%; }
+.donut text { fill: var(--text); font-weight: 700; font-size: 16px; font-family: var(--font); }
+.donut text.sub { fill: var(--muted); font-size: 9px; font-weight: 500; letter-spacing: 1px; }
+.alloc-list { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.alloc-row { display: flex; align-items: center; gap: 10px; font-size: 13px; min-width: 0; }
+.alloc-row i { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.alloc-row .n { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alloc-row b { font-weight: 700; white-space: nowrap; }
+.alloc-row small { color: var(--muted); white-space: nowrap; }
+/* En la tarjeta angosta de Distribución la dona va arriba y la lista abajo. */
+.grid-positions .donut-wrap { flex-direction: column; gap: 16px; }
+.grid-positions .alloc-list { width: 100%; }
+@media (max-width: 1100px) {
+  .grid-positions .donut-wrap { flex-direction: row; gap: 22px; }
+}
+@media (max-width: 860px) {
+  .donut-wrap, .grid-positions .donut-wrap { flex-direction: column; gap: 16px; }
+  .alloc-list { width: 100%; }
+}
