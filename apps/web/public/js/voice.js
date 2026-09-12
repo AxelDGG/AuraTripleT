@@ -64,19 +64,19 @@
   function dictate({ input, button, onResult }) {
     const { t, locale } = window.I18N;
     if (current) { stop(); return; }
-    if (!Recognition) { window.Modals.toast(t('voice.unsupported'), 'error'); return; }
+    if (!Recognition) { window.UI.toast(t('voice.unsupported'), 'error'); return; }
     const previousPlaceholder = input.placeholder;
     const previousValue = input.value;
     button.classList.add('is-listening');
     button.setAttribute('aria-pressed', 'true');
-    input.placeholder = t('ask.listening');
+    input.placeholder = t('voice.listening');
     listen({
       lang: locale(),
       onInterim: (text) => { input.value = text; },
       onResult: (text) => { onResult(text); },
       onError: (code) => {
         input.value = previousValue;
-        window.Modals.toast(t(errorKey(code)), code === 'no-speech' ? 'info' : 'error');
+        window.UI.toast(t(errorKey(code)), code === 'no-speech' ? 'info' : 'error');
       },
       onEnd: () => {
         button.classList.remove('is-listening');

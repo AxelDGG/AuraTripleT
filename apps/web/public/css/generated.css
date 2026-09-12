@@ -1,0 +1,227 @@
+/* ===== Componentes que genera el agente (Norte UI Spec) =====
+   Los nombres de clase los produce renderer.js; aquí viven sus estilos en la
+   paleta Banorte. Cada bloque entra con una animación escalonada: el delay lo
+   pone el renderer en línea, así la interfaz se arma a la vista del usuario. */
+
+.gen { animation: rise var(--dur-slow) var(--ease-out) both; }
+
+.card.gen,
+.c-table.gen,
+.c-form.gen,
+.c-progress.gen,
+.c-text.gen {
+  padding: 16px 18px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Separación uniforme entre componentes generados. */
+.canvas > .gen + .gen,
+.overlay-body > .gen + .gen,
+.gen-stack > .gen + .gen { margin-top: 12px; }
+
+.card.gen > h3 {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+
+/* ---------- header ---------- */
+.c-header.gen { padding: 2px 0 6px; }
+.c-header.gen .badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--red-tint);
+  color: var(--red-700);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.c-header.gen h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+.c-header.gen p { margin-top: 5px; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+
+/* ---------- kpi_grid ---------- */
+.c-kpis.gen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.kpi {
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--dur) var(--ease-spring), border-color var(--dur);
+}
+.kpi:hover { transform: translateY(-2px); border-color: var(--red-tint-2); }
+.k-label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.k-value { margin-top: 6px; font-size: 21px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.k-delta { margin-top: 3px; font-size: 12px; font-weight: 700; }
+.k-delta.up { color: var(--green); }
+.k-delta.down { color: var(--red-600); }
+.k-delta.neutral { color: var(--muted); }
+
+/* ---------- balance_cards ---------- */
+.c-balances.gen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.acct {
+  min-height: 128px;
+  padding: 16px;
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: #fff;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.acct:hover { transform: translateY(-3px); }
+.acct.checking { background: linear-gradient(140deg, var(--red) 0%, var(--red-700) 100%); }
+.acct.savings  { background: linear-gradient(140deg, #3a3a45 0%, #1b1b20 100%); }
+.acct.credit   { background: linear-gradient(140deg, var(--red-700) 0%, #3a0009 100%); }
+.a-name { font-size: 13px; font-weight: 700; }
+.a-num { margin-top: 3px; font-family: var(--mono); font-size: 11.5px; opacity: 0.78; }
+.a-bal { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.a-extra { margin-top: 3px; font-size: 11.5px; opacity: 0.82; }
+
+/* ---------- chart ---------- */
+.chart-wrap { position: relative; height: 260px; }
+.chart-wrap canvas { max-width: 100%; }
+
+/* ---------- table ---------- */
+.c-table.gen { overflow-x: auto; }
+.c-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.c-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+.c-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.c-table tbody tr { transition: background var(--dur-fast); }
+.c-table tbody tr:hover { background: var(--red-tint); }
+.c-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ---------- transaction_list ---------- */
+.tx {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 8px;
+  border-radius: var(--r-sm);
+  transition: background var(--dur-fast);
+}
+.tx:hover { background: var(--surface-2); }
+.t-icon {
+  width: 34px; height: 34px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--red-tint);
+  font-size: 16px;
+}
+.t-main { flex: 1; min-width: 0; }
+.t-desc { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-meta { margin-top: 2px; font-size: 11px; color: var(--muted); }
+.t-amt { flex: none; font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.t-amt.pos { color: var(--green); }
+.t-amt.neg { color: var(--ink); }
+
+/* ---------- form ---------- */
+.c-form .f-desc { margin: -6px 0 12px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.f-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.f-field { display: flex; flex-direction: column; gap: 5px; }
+.f-field label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.f-field input, .f-field select {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--line-2);
+  background: var(--surface);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.f-field input:focus, .f-field select:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(235, 0, 41, 0.12);
+}
+.f-submit {
+  margin-top: 12px;
+  height: 40px;
+  padding: 0 22px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(140deg, var(--red) 0%, var(--red-600) 100%);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  box-shadow: var(--shadow-red);
+  transition: transform var(--dur-fast) var(--ease-spring), opacity var(--dur-fast);
+}
+.f-submit:hover:not(:disabled) { transform: translateY(-2px); }
+.f-submit:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ---------- alert ---------- */
+.c-alert.gen {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm);
+}
+.c-alert .al-icon { flex: none; font-size: 15px; line-height: 1.4; }
+.c-alert b { display: block; margin-bottom: 2px; }
+.c-alert.info    { border-color: rgba(31, 95, 191, 0.30); background: #eef3fc; }
+.c-alert.success { border-color: rgba(15, 143, 77, 0.30); background: #ecf7f0; }
+.c-alert.warning { border-color: rgba(184, 119, 10, 0.32); background: #fdf5e8; }
+.c-alert.error   { border-color: var(--red-tint-2); background: var(--red-tint); color: var(--red-700); }
+
+/* ---------- progress ---------- */
+.p-head { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+.p-track { height: 9px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
+.p-fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--red) 0%, var(--red-700) 100%);
+  transition: width 900ms var(--ease-out);
+}
+.p-cap { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+
+/* ---------- text ---------- */
+.c-text.gen { font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+.c-text strong { color: var(--ink); font-weight: 700; }
+.c-text code {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--red-tint);
+  color: var(--red-700);
+}
+
+/* ---------- Miniaturas: sin sombras ni hover, el detalle no se lee a escala ---------- */
+.car-preview .gen,
+.car-preview .kpi,
+.car-preview .acct,
+.car-preview .card { animation: none; box-shadow: none; transform: none !important; }
+.car-preview .chart-wrap { height: 180px; }

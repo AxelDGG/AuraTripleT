@@ -141,7 +141,8 @@ Los tres pasos del reto mapeados a código real:
 | Interpretar la intención | `POST /api/chat` abre un stream SSE; el agente recibe el mensaje y el historial, y decide qué herramientas llamar (varias en paralelo) | `apps/api/src/routes/chat.js`, `apps/api/src/agent.js` |
 | Consultar datos y actuar | Cada tool call viaja por MCP (stdio) al servidor `banorte-banking`; las tools aplican reglas de negocio sobre un repositorio de datos; cada llamada y su resultado se transmiten en vivo (`tool_call`, `tool_result`) | `packages/mcp-server/src/server.js`, `src/tools.js`, `src/repositories/` |
 | Generar la interfaz | El agente termina con `{"message", "ui": [...]}`; la API lo normaliza con el contrato y el evento `ui` llega al cliente, donde el renderer construye DOM seguro | `apps/api/src/ui-spec.js`, `packages/a2ui-schema`, `apps/web/public/renderer.js` |
-| Cerrar el ciclo | Un formulario generado dispara `genui:form-submit`; el cliente reenvía `[form:<accion>] campo=valor` y el agente ejecuta la acción y genera la siguiente UI | `apps/web/public/js/ai-panel.js` |
+| Cerrar el ciclo | Un formulario generado dispara `genui:form-submit`; el cliente reenvía `[form:<accion>] campo=valor` y el agente ejecuta la acción y genera la siguiente UI | `apps/web/public/js/agent.js` |
+| Archivar la interfaz | El agente elige carpeta (`folder`) y título; la API guarda la visualización en la hypertable `ui_history` y devuelve un evento `history` con la fila | `apps/api/src/history-store.js`, `packages/a2ui-schema/src/folders.js` |
 
 Dos decisiones de la base que vale la pena defender ante el jurado:
 
@@ -213,7 +214,7 @@ Regla: **cada proveedor externo tiene fallback** para que la demo nunca dependa 
 |---|---|---|---|
 | **Gemini API** | Una app de IA que entienda lenguaje, analice datos y use la API con creatividad | **Gemini es el analista.** (a) Tool MCP `analyze_finances`: hasta 12 meses de movimientos a Gemini Flash con salida estructurada → gastos hormiga, suscripciones, anomalías y metas sugeridas. (b) Tool `parse_receipt`: foto de ticket o comprobante → `{comercio, fecha, monto, categoría}` para conciliación (multimodal). (c) Coach de educación financiera que explica CAT, intereses o SPEI con los datos de la persona. (d) Fallback de orquestación: `LLM_PROVIDER=gemini` usa function calling nativo con el mismo esquema de tools (se registra en `apps/api/src/providers/`). | (a) y (b) visibles en el guion de la demo |
 | **ElevenLabs** | Agentes que hablan | **STT + TTS, el LLM sigue siendo el cerebro.** Speech-to-Text para el micrófono (web y mobile) y Text-to-Speech con la voz "Norte" en español mexicano, con streaming, para leer el `message`. Endpoints propios `POST /api/voice/transcribe` y `POST /api/voice/speak`: la key nunca llega al cliente. Fallback: Web Speech API (`apps/web/public/js/voice.js`). | TTS en web y mobile, STT en mobile |
-| **Tiger Data** | App rápida y escalable con SQL | **Base operacional.** Postgres + TimescaleDB en Tiger Cloud: `transactions` como hypertable, continuous aggregates para gasto por categoría y flujo mensual, multi-cliente por `customer_id`. Las tools MCP leen vía repositorios (`packages/mcp-server/src/repositories/`: `memory` hoy, `tiger` pendiente, se elige con `BANK_DATA_SOURCE`). Local: contenedor TimescaleDB en `infra/docker-compose.yml`. | Cuentas, movimientos y gastos leyendo de Tiger con seed sintético |
+| **Tiger Data** | App rápida y escalable con SQL | **Base operacional — integrado.** Postgres 18 + TimescaleDB 2.30 en Tiger Cloud. Dos hypertables: `transactions` (movimientos, chunks de 30 días) y `ui_history` (cada interfaz que genera el agente, con la carpeta que él mismo eligió, chunks de 7 días e índice trigram sobre el título para el buscador). Continuous aggregate `spending_by_category_monthly` con refresh policy. Las tools MCP leen vía repositorios (`memory` \| `tiger`, se elige con `BANK_DATA_SOURCE`); la transferencia es atómica con la condición de saldo dentro del `UPDATE`. Carga con `npm run db:setup`, paridad contra la base real con `npm run db:verify`. Local: contenedor TimescaleDB en `infra/docker-compose.yml`. | Cuentas, movimientos, gastos e historial de visualizaciones leyendo y escribiendo en Tiger |
 | **Snowflake** | Uso de Snowflake para APIs y LLMs | **Capa analítica.** Dataset sintético poblacional (miles de clientes, 24 meses) para **benchmarks de pares** ("gastas 30% más que personas como tú en restaurantes") y Cortex AI: `AI_CLASSIFY` para categorizar, `AI_AGG` / `AI_COMPLETE` para resúmenes, Cortex Analyst para preguntas en lenguaje natural. Expuesto como tool MCP `get_peer_benchmark` vía SQL REST API o `snowflake-sdk`. | Una consulta Cortex visible dentro de la UI generada |
 | **Vultr** | Develop locally, deploy globally | **Infraestructura.** El mismo `docker-compose.yml` corre local y en un Vultr Cloud Compute (API + Caddy con HTTPS). Object Storage para imágenes de recibos. GitHub Action que despliega en cada push a `main`. La app móvil y el widget apuntan a la URL pública. | API pública accesible desde el celular de la demo |
 
@@ -253,26 +254,31 @@ AuraTripleT/
 │   ├── api/                   @norte/api · Express + agente + cliente MCP + streaming SSE
 │   │   ├── src/index.js       arranque: carga el .env de la raíz, listen, precalienta MCP
 │   │   ├── src/app.js         createApp(): middleware + rutas, sin puerto (así se prueba)
-│   │   ├── src/routes/        health · dashboard · credit · chat (SSE)
+│   │   ├── src/routes/        health · dashboard · customer · credit · chat (SSE) · history
 │   │   ├── src/middleware/    security (CORS + CSP) · rate-limit · error-handler
 │   │   ├── src/agent.js       loop de tool calling y SYSTEM_PROMPT
 │   │   ├── src/providers/     proveedores LLM intercambiables (groq hoy; gemini se registra aquí)
 │   │   ├── src/ui-spec.js     parsea y normaliza la respuesta del modelo con @norte/a2ui-schema
 │   │   ├── src/mcp-client.js  lanza @norte/mcp-server como subproceso
-│   │   └── tests/             agent · routes · providers · ui-spec · mcp (e2e)
+│   │   ├── src/history-store.js  historial de visualizaciones en Tiger (fallback en memoria)
+│   │   └── tests/             agent · routes · history · providers · ui-spec · mcp (e2e)
 │   ├── web/                   @norte/web · UI web vanilla (la sirve @norte/api)
-│   │   └── public/            index.html · renderer.js · css/ · js/ · vendor/
+│   │   └── public/            index.html · renderer.js (Norte UI Spec → DOM)
+│   │                          js/: app · agent (SSE) · history (carrusel + carpetas) · ui · api · voice · i18n · icons
+│   │                          css/: tokens · shell · carousel · rail · generated
 │   └── mobile/                (placeholder) React Native + widget Android
 ├── packages/
 │   ├── mcp-server/            @norte/mcp-server · servidor MCP banorte-banking
 │   │   ├── src/server.js      registra las 14 herramientas con zod (stdio)
 │   │   ├── src/tools.js       createBankingTools(repo): reglas de negocio puras
-│   │   ├── src/repositories/  fuentes de datos: memory hoy, tiger después (BANK_DATA_SOURCE)
+│   │   ├── src/repositories/  fuentes de datos: memory · tiger (TimescaleDB), se elige con BANK_DATA_SOURCE
 │   │   ├── src/data/          seeds sintéticos: cliente, cuentas, movimientos, mercado
+│   │   ├── scripts/           build-seed.js: genera data/seeds/002_seed.sql desde los mocks
 │   │   └── tests/             tools · repositories
 │   ├── a2ui-schema/           @norte/a2ui-schema · contrato Norte UI Spec v1 (catálogo + esquemas zod)
 │   └── shared/                (placeholder) formatters, i18n, tipos
-├── data/                      (placeholder) seeds para Tiger · DDL y dataset para Snowflake
+├── data/seeds/                esquema y seed de Tiger Data (001_schema.sql · 002_seed.sql)
+├── scripts/                   db-setup.js (carga el esquema) · db-verify.js (paridad contra la base real)
 └── infra/                     Dockerfile + docker-compose (api + timescaledb) · deploy en Vultr pendiente
 ```
 
@@ -378,11 +384,12 @@ MCP por stdio, útil para inspectores MCP). Con Docker: `docker compose -f infra
 | `GROQ_API_KEY`, `GROQ_MODEL` | Hoy | Orquestador (`openai/gpt-oss-120b`) |
 | `PORT` | Hoy | Puerto de la API (3040) |
 | `LLM_PROVIDER` | Hoy (opcional) | `groq` (default); `gemini` cuando se registre el proveedor |
-| `BANK_DATA_SOURCE` | Hoy (opcional) | Fuente de datos del MCP: `memory` (default) o `tiger` cuando exista |
+| `BANK_DATA_SOURCE` | Hoy (opcional) | Fuente de datos del MCP: `memory` (default) o `tiger` |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | Objetivo | Insights, recibos, coach, fallback |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Objetivo | STT y TTS |
-| `DATABASE_URL` | Objetivo | Tiger Data (TimescaleDB) |
+| `DATABASE_URL` | Hoy (opcional) | Tiger Data (TimescaleDB). Sin ella el MCP usa los seeds en memoria y el historial no persiste |
 | `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE` | Objetivo | Benchmarks y Cortex AI |
+| `DEMO_CUSTOMER_ID` | Hoy (opcional) | Cliente al que se le atribuye el historial (default `CLT-889201`) |
 | `PUBLIC_API_URL` | Objetivo | URL que usan la app móvil y el widget |
 
 ---
