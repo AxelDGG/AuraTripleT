@@ -15,11 +15,11 @@ export function corsForClients(req, res, next) {
 
 const CONTENT_SECURITY_POLICY =
   "default-src 'self'; " +
-  "script-src 'self' https://elevenlabs.io https://cdn.elevenlabs.io; " +
+  "script-src 'self' https://elevenlabs.io https://cdn.elevenlabs.io blob: data:; " +
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
   "font-src 'self' https://fonts.gstatic.com; " +
-  "img-src 'self' data: https://*.elevenlabs.io; " +
-  "connect-src 'self' https://api.elevenlabs.io wss://api.elevenlabs.io; " +
+  "img-src 'self' data: https://*.elevenlabs.io https://storage.googleapis.com; " +
+  "connect-src 'self' https://api.elevenlabs.io wss://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.us.elevenlabs.io wss://livekit.rtc.elevenlabs.io; " +
   "media-src 'self' blob: https://api.elevenlabs.io; " +
   "object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
 
