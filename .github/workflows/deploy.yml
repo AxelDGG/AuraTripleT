@@ -1,0 +1,23 @@
+name: Deploy a Vultr
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar vía SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: ${{ secrets.VULTR_USER }}
+          key: ${{ secrets.VULTR_SSH_KEY }}
+          script: |
+            set -e
+            cd /root/AuraTripleT
+            git fetch origin main
+            git reset --hard origin/main
+            docker compose -f infra/docker-compose.yml up -d --build --no-deps api
+            docker image prune -f
