@@ -3,3 +3,4 @@ node_modules/
 *.log
 data/google-token.json
 data/google-token.json.backup
+data/snowflake/*.csv

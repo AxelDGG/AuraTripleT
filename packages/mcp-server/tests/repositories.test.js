@@ -4,7 +4,7 @@ import { createRepository, availableDataSources } from '../src/repositories/inde
 import { createMemoryRepository } from '../src/repositories/memory.js';
 
 test('createRepository usa memory por defecto y rechaza fuentes desconocidas', () => {
-  assert.deepEqual(availableDataSources(), ['memory', 'tiger']);
+  assert.deepEqual(availableDataSources(), ['memory', 'tiger', 'snowflake']);
   assert.equal(createRepository({ kind: undefined }).kind, 'memory');
   assert.equal(createRepository({ kind: 'memory' }).kind, 'memory');
   assert.throws(() => createRepository({ kind: 'oracle' }), /BANK_DATA_SOURCE desconocido/);

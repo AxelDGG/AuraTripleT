@@ -23,7 +23,7 @@ test('el servidor MCP expone las 17 herramientas bancarias', async () => {
   assert.deepEqual(banking, [
     'get_accounts', 'get_beneficiaries', 'get_customer_profile', 'get_exchange_rates',
     'get_investments', 'get_monthly_cashflow', 'get_spending_by_category', 'get_spending_trend', 'get_portfolio',
-    'get_portfolio_performance', 'get_watchlist',
+    'get_portfolio_performance', 'get_watchlist', 'get_peer_benchmark',
     'get_transactions', 'list_credit_products', 'simulate_credit', 'transfer_funds',
     'get_card_restructure_options', 'restructure_card_debt',
   ].sort());

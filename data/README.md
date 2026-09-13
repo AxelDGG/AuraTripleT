@@ -19,9 +19,21 @@ npm run db:build-seed  # regenera 002_seed.sql tras cambiar los mocks
 carpeta que eligió la IA, el título, el prompt que la originó y el Norte UI Spec completo en JSONB.
 Es lo que alimenta el carrusel y las carpetas de la web.
 
-## `snowflake/` (pendiente)
+## `snowflake/` — capa analítica (benchmarks de pares + Cortex)
 
-DDL, dataset poblacional sintético (miles de clientes, 24 meses), semantic model y scripts Cortex AI
-para **benchmarks de pares**.
+| Archivo | Qué trae |
+|---|---|
+| `001_peer_schema.sql` | DDL de `peer_customers` y `peer_spending`, la vista de percentiles y los ejemplos Cortex (`COMPLETE`, `AI_AGG`, `AI_CLASSIFY`). |
+| `peer_customers.csv` / `peer_spending.csv` | Población sintética generada **por `npm run peer:seed`** (gitignore: se regeniran en cada máquina, no se commitan). |
+
+```bash
+npm run peer:seed      # genera data/snowflake/peer_*.csv (PEER_SIZE=500 default)
+```
+
+Los CSV se cargan con `COPY INTO` (pasos dentro de `001_peer_schema.sql`). **Los mismos datos y la
+misma semilla** alimentan el motor local (`packages/mcp-server/src/data/peers.js`): con o sin
+Snowflake configurado, la demo devuelve el mismo benchmark. La tool MCP `get_peer_benchmark` lee de
+la SQL REST API + `SNOWFLAKE.CORTEX.COMPLETE` cuando `SNOWFLAKE_*` está en el `.env`, y de la
+población local si no.
 
 Ver [README raíz](../README.md), sección "Retos MLH".

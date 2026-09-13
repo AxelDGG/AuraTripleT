@@ -20,7 +20,8 @@
     "db:verify": "node scripts/db-verify.js",
     "sync:a2ui": "node scripts/sync-a2ui-core.js",
     "check:a2ui": "node scripts/sync-a2ui-core.js --check",
-    "google:auth": "npm run google:auth -w @norte/mcp-server"
+    "google:auth": "npm run google:auth -w @norte/mcp-server",
+    "peer:seed": "node packages/mcp-server/scripts/build-peer-seed.js"
   },
   "engines": {
     "node": ">=18"

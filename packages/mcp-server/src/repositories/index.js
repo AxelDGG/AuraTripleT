@@ -1,13 +1,18 @@
 // Selección de la fuente de datos bancarios.
 // `memory` (seeds sintéticos) es la opción por defecto y el fallback de la demo;
-// `tiger` (Postgres + TimescaleDB en Tiger Cloud) implementa el mismo contrato.
+// `tiger` (Postgres + TimescaleDB en Tiger Cloud) implementa el mismo contrato;
+// `snowflake` es la capa analítica: delega lo operativo al repositorio local y
+// alimenta los benchmarks de pares desde la SQL API + Cortex (o la población
+// local si SNOWFLAKE_* no está configurado).
 
 import { createMemoryRepository } from './memory.js';
 import { createTigerRepository } from './tiger.js';
+import { createSnowflakeRepository } from './snowflake.js';
 
 const FACTORIES = {
   memory: createMemoryRepository,
   tiger: createTigerRepository,
+  snowflake: createSnowflakeRepository,
 };
 
 export const DEFAULT_DATA_SOURCE = 'memory';
@@ -32,5 +37,11 @@ export function createRepository({
     logger('[norte] BANK_DATA_SOURCE=tiger pero falta DATABASE_URL; usando datos en memoria.');
     return createMemoryRepository();
   }
+  // `snowflake` funciona igual sin credenciales: su camino analítico cae a la
+  // población sintética local (mismos datos que data/snowflake/) y se avisa.
+  if (kind === 'snowflake' && !process.env.SNOWFLAKE_ACCOUNT) {
+    logger('[norte] BANK_DATA_SOURCE=snowflake sin SNOWFLAKE_ACCOUNT; benchmarks con población local.');
+  }
+  if (kind === 'snowflake') return factory();
   return kind === 'tiger' ? factory({ connectionString }) : factory();
 }

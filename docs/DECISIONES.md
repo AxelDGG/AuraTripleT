@@ -174,6 +174,23 @@ las columnas existentes permiten (`minimum_payment`, `interest_rate`); el detall
 superficie archivada en `ui_history`. No se corrió una migración nueva sobre Tiger Cloud a mitad del
 reto.
 
+## Snowflake: capa analítica, nunca operativa, con fallback en la misma semilla
+
+**Decisión.** `get_peer_benchmark` compara el gasto del cliente contra una población sintética de
+miles de pares del mismo segmento (percentiles p25/p50/p75/p90 por categoría). Con `SNOWFLAKE_*` en
+el `.env` los percentiles salen de `peer_spending` vía la SQL REST API (`POST /api/v2/statements`,
+auth Basic, polling del handle) y la frase de la UI la genera `SNOWFLAKE.CORTEX.COMPLETE` dentro de
+Snowflake; el resultado trae `evidence.sql` para que la UI muestre la consulta. Sin credenciales, el
+mismo motor (`packages/mcp-server/src/data/peers.js`) calcula el benchmark sobre la población local,
+generada con la **misma semilla que los CSVs de `data/snowflake/`**: la demo nunca depende de red y
+el número no cambia.
+
+**Qué se descartó.** `snowflake-sdk` (una dependencia nativa más; el endpoint REST es el mismo que
+muestra el ejemplo del reto). Cortex Analyst y `AI_AGG` (necesitan semantic model) se documentan en
+`001_peer_schema.sql` como siguiente paso, no bloquean el mínimo. Usar Snowflake para lo operacional
+(cuentas, movimientos): el dato transaccional vive en Tiger/memoria y Snowflake solo lee pobla­ción
+analítica — evita latencia y una cuenta bancaria "falsa" en la demo.
+
 ## Lo que no se hizo, a propósito
 
 - `callRendererFunction` / `agentFunctionResponse` (llamadas bidireccionales de la spec): sin caso de

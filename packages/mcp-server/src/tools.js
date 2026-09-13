@@ -8,6 +8,7 @@ import {
   buildPerformanceSeries,
   buildSparkline,
 } from './data/marketData.js';
+import { computePeerBenchmark } from './data/peers.js';
 
 const DEFAULT_TRANSACTION_LIMIT = 15;
 const MAX_TRANSACTION_LIMIT = 50;
@@ -139,6 +140,28 @@ export function createBankingTools(repo) {
       unusual: zScore !== null && Math.abs(zScore) >= UNUSUAL_Z,
       topChanges,
     };
+  }
+
+  // Benchmark de pares: ¿cómo gasto contra personas de mi mismo segmento?
+  // Delega al repositorio cuando hay un camino analítico propio (snowflake);
+  // en memoria y tiger resuelve con el motor poblacional local, igual que los
+  // CSVs que genera `npm run peer:seed`.
+  async function getPeerBenchmark({ category, months } = {}) {
+    const span = trendMonths(months, 6);
+    const spending = await repo.spendingByCategory({ months: span });
+    const customer = await repo.getCustomer();
+    const base = {
+      customer: customer.name,
+      segment: customer.segment,
+      months: span,
+      windowLabel: `últimos ${span} meses (promedio mensual)`,
+    };
+    if (typeof repo.peerBenchmark === 'function') {
+      const result = await repo.peerBenchmark({ customer, spending, months: span });
+      return { ...base, ...result, ...(category ? { filter: category } : {}) };
+    }
+    const result = computePeerBenchmark({ customer, spending, months: span, category: category || undefined });
+    return { ...base, ...result, source: 'sample-population', ...(category ? { filter: category } : {}) };
   }
 
   async function getInvestments() {
@@ -394,6 +417,7 @@ export function createBankingTools(repo) {
     getTransactions,
     getSpendingByCategory,
     getSpendingTrend,
+    getPeerBenchmark,
     getMonthlyCashflow,
     getInvestments,
     getExchangeRates,

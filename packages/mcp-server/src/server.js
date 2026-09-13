@@ -77,6 +77,16 @@ server.tool(
 );
 
 server.tool(
+  'get_peer_benchmark',
+  'Compara tu gasto con personas del mismo segmento usando una población sintética (y cuando está configurado, la SQL API + Cortex de Snowflake). Muestra en qué percentil estás por categoría, cuánto gastas de más o de menos vs la mediana del segmento y una lectura generada con Cortex. Para "¿gasto mucho en X?", "¿cómo gasto comparado con gente como yo?"',
+  {
+    category: z.string().nullish().describe('Categoría, ej. Restaurantes, Supermercado'),
+    months: z.number().nullish().describe('Ventana de meses, 3 a 12 (default 6)'),
+  },
+  async (args) => jsonResult(await tools.getPeerBenchmark(args)),
+);
+
+server.tool(
   'get_monthly_cashflow',
   'Devuelve ingresos vs gastos por mes (para gráficas de flujo de efectivo).',
   {},
