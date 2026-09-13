@@ -1,6 +1,43 @@
 /* ===== Fila de visualizaciones sugeridas (arriba del lienzo) ===== */
-
-.suggest { display: flex; flex-direction: column; gap: 8px; }
+/* Fija arriba del workspace (fila propia): nunca rueda. Pegado a la barra
+   superior. Al hacer scroll en el chat se minimiza (`.is-mini`) y al volver
+   arriba reaparece: no quita visto al chat. */
+.suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -18px;
+  padding: 12px 14px 6px;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border: 1px solid var(--line);
+  border-top: none;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: padding var(--dur) var(--ease-out), gap var(--dur) var(--ease-out);
+}
+/* Al scrollear desaparece por completo; al volver arriba reaparece. */
+.suggest.is-mini {
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+.suggest.is-mini .suggest-head,
+.suggest.is-mini .suggest-viewport,
+.suggest.is-mini .suggest-toggle {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  margin: 0;
+  overflow: hidden;
+}
 
 .suggest-viewport {
   overflow: hidden;
@@ -51,9 +88,9 @@
 .suggest-head { display: flex; align-items: center; gap: 12px; }
 
 .suggest-title {
-  font-size: 12px;
+  font-size: 17px;
   font-weight: 800;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--red-600);
 }

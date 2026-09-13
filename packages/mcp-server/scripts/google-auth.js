@@ -16,7 +16,7 @@ dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '..', 
 const redirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3045/oauth2callback';
 const { port, pathname } = new URL(redirectUri);
 
-const client = createOAuthClient();
+const client = await createOAuthClient();
 const authUrl = client.generateAuthUrl({
   access_type: 'offline',
   prompt: 'consent', // fuerza refresh_token incluso si ya se autorizó antes

@@ -58,11 +58,11 @@
 
     const COLLAPSED_W = 60;
     const MIN_W = 240;
-    const MAX_W = 360;
+    const MAX_W = 520;
     const mq = window.matchMedia('(max-width: 767px)');
     let savedW = 0;
 
-    function maxW() { return Math.min(MAX_W, Math.floor(window.innerWidth * 0.30)); }
+    function maxW() { return Math.min(MAX_W, Math.floor(window.innerWidth * 0.45)); }
     function initSavedW() { if (!savedW) savedW = Math.max(MIN_W, rail.offsetWidth); }
 
     function openDrawer() {

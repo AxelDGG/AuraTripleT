@@ -26,7 +26,7 @@
 .a2-grid > .c-chart .chart-wrap, .a2-row > .c-chart .chart-wrap { height: 220px; }
 
 .a2-section { display: flex; flex-direction: column; gap: 12px; }
-.a2-section-head h2 { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.a2-section-head h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
 .a2-section-head p { margin-top: 3px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 
 .a2-card > h3 { font-size: 14px; font-weight: 800; margin-bottom: 12px; }
@@ -90,8 +90,10 @@
   box-shadow: var(--shadow-red);
 }
 
-.a2-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.a2-chips { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; scrollbar-width: none; }
 .a2-chip {
+  flex: 0 1 auto;
+  min-width: 0;
   padding: 8px 16px;
   border-radius: var(--r-pill);
   border: 1.5px solid var(--line-2);
@@ -99,6 +101,9 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: all var(--dur-fast);
 }
 .a2-chip:hover { border-color: var(--red); color: var(--red); }

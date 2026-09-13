@@ -38,6 +38,12 @@
     isInThread: false,
   };
 
+  // El scroll vive en el lienzo; los overlays (sugerencias arriba, chat abajo)
+  // son filas fijas del workspace y no se mueven.
+  const scroller = () => $('canvas');
+  const scrollTo = (top) => { const sc = scroller(); if (sc) sc.scrollTop = top; };
+  const scrollToEnd = () => scrollTo(scroller()?.scrollHeight ?? 0);
+
   const a2ui = () => window.A2UIWeb ?? null;
 
   // ---------- Estado en la franja superior ----------
@@ -108,6 +114,17 @@
     state.history = [];
   }
 
+  // "Nueva consulta": vuelve a la página principal ("¿Qué quieres…?") sin
+  // borrar el historial de la línea de tiempo; solo cierra el hilo en curso.
+  function newQuery() {
+    resetThread();
+    window.History?.clearActive?.();
+    renderEmpty();
+    const composer = $('composer');
+    const input = composer?.querySelector('input');
+    requestAnimationFrame(() => input?.focus());
+  }
+
   function renderEmpty() {
     const { t } = window.I18N;
     const canvas = $('canvas');
@@ -120,28 +137,30 @@
     unmountAll();
 
     const empty = el('div', 'canvas-empty');
-    const orb = el('div', 'orb');
-    orb.append(window.ICONS.el('sparkle'));
 
     const rawName = $('customerName')?.textContent ?? '';
     const firstName = (rawName && rawName !== '…' && rawName !== 'Banca en línea')
       ? rawName.split(' ')[0] : '';
     const title = firstName ? `¿Qué quieres ver hoy, ${firstName}?` : t('canvas.title');
 
-    empty.append(orb, el('h2', null, title), el('p', null, t('canvas.text')));
+    // Título y botón de info en el mismo renglón (reemplaza el hint card siempre visible)
+    const head = el('div', 'canvas-empty-head');
+    head.append(el('h2', null, title));
 
-    // Botón de info (reemplaza el hint card siempre visible)
     const infoBtn = el('button', 'help-btn canvas-info-btn');
     infoBtn.type = 'button';
     infoBtn.dataset.help = 'canvas';
     infoBtn.setAttribute('aria-label', 'Cómo empezar');
     infoBtn.append(window.ICONS.el('alertInfo'));
-    empty.append(infoBtn);
+    head.append(infoBtn);
+
+    empty.append(head, el('p', null, t('canvas.text')));
 
     // Mueve el composer al centro, justo bajo el saludo (estilo Claude)
     if (composer) empty.append(composer);
 
     canvas.replaceChildren(empty);
+    document.querySelector('.suggest')?.classList.remove('is-mini');
     setHasContent(false);
     state.active = null;
     state.threadEntryId = null;
@@ -166,7 +185,7 @@
     const tools = el('div', 'tools');
     box.append(label, tools);
     canvas.append(box);
-    canvas.scrollTop = canvas.scrollHeight;
+    scrollToEnd();
     return { box, label, tools, question };
   }
 
@@ -209,10 +228,10 @@
       surfaceId,
     }));
     meta.append(expand);
-    head.append(meta);
 
     return {
       node: head,
+      meta,
       update({ title: newTitle, message: newMessage, folder: newFolder, status: newStatus }) {
         if (newTitle !== undefined) h2.textContent = newTitle ?? '';
         if (newMessage !== undefined) { p.textContent = newMessage ?? ''; p.hidden = !newMessage; }
@@ -242,14 +261,95 @@
   }
 
   function finishTurn() {
-    const canvas = $('canvas');
     if (state.isInThread) {
-      canvas.scrollTop = canvas.scrollHeight;
+      scrollToEnd();
     } else {
-      canvas.scrollTop = 0;
+      scrollTo(0);
       state.isInThread = true;
     }
     setHasContent(true);
+    renderFollowUps();
+  }
+
+  // ---------- Follow-ups inteligentes ----------
+
+  // Sugerencias de qué preguntar, armadas en el cliente según lo que trae la
+  // superficie activa (gráficas, movimientos, KPIs) y el tema del turno. No
+  // depende del modelo: aparecen siempre, sin llamada extra ni espera.
+  function surfaceComponents(surfaceId) {
+    const store = window.A2UIWeb?.store;
+    const surface = store?.get?.(surfaceId);
+    return surface && surface.components ? [...surface.components.values()] : [];
+  }
+
+  function followUpTopic(text) {
+    const low = String(text || '').toLowerCase();
+    if (/(gasto|egres)/.test(low)) return { noun: 'gastos', question: '¿En qué estoy gastando más?' };
+    if (/(ingres|saldo)/.test(low)) return { noun: 'ingresos', question: '¿De dónde vienen mis ingresos?' };
+    if (/ahorr/.test(low)) return { noun: 'ahorro', question: '¿Cómo puedo ahorrar más?' };
+    if (/inversi/.test(low)) return { noun: 'inversiones', question: '¿Cómo van mis inversiones?' };
+    if (/cr[eé]dito|tarjeta/.test(low)) return { noun: 'tarjeta', question: '¿Cómo puedo pagar menos intereses?' };
+    return null;
+  }
+
+  function suggestFollowUps(surfaceId, title) {
+    const comps = surfaceComponents(surfaceId);
+    const topic = followUpTopic(title);
+    const kinds = new Set(comps.map((c) => c.component));
+    const out = [];
+
+    const push = (text) => { if (out.length < 3) out.push(text); };
+
+    if (kinds.has('Chart')) {
+      const chart = comps.find((c) => c.component === 'Chart');
+      const radial = ['pie', 'doughnut', 'radar', 'gauge'].includes(chart?.chartType);
+      if (topic) {
+        if (radial) push(`¿Qué parte de mis ${topic.noun} representa cada segmento?`);
+        else push(`Muéstrame mis ${topic.noun} por categoría`);
+        push(`¿Cómo bajo mis ${topic.noun} este mes?`);
+        push(topic.question);
+      } else {
+        if (radial) push('¿Qué domina aquí y por qué?');
+        else push('¿Qué tendencia hay en los últimos meses?');
+        push('Compara estas cifras con el periodo anterior');
+        push('Muéstralo por categoría');
+      }
+    }
+
+    if (kinds.has('TransactionList') || kinds.has('Table')) {
+      push('Explícame los movimientos más grandes');
+      push(topic?.question || '¿En qué estoy gastando más?');
+    }
+
+    if (kinds.has('Kpi')) push('¿Por qué cambió ese indicador?');
+
+    const generic = [
+      'Hazme una gráfica de esto',
+      'Dame más detalle con cifras',
+      'Explícamelo como si fuera para mi mamá',
+      'Dame una sugerencia para mejorar esto',
+    ];
+    while (out.length < 3 && generic.length) push(generic.shift());
+    return out.slice(0, 3);
+  }
+
+  // Chips debajo del turno: un clic envia la pregunta como follow-up del hilo.
+  function renderFollowUps() {
+    const turn = state.turn;
+    if (!turn) return;
+    turn.querySelector('.follow-ups')?.remove();
+    const active = state.active;
+    if (!active?.surfaceId || surfaceComponents(active.surfaceId).length === 0) return;
+    const prompts = suggestFollowUps(active.surfaceId, active.title);
+    if (!prompts.length) return;
+    const row = el('div', 'follow-ups');
+    for (const question of prompts) {
+      const chip = el('button', 'fu-chip', question);
+      chip.type = 'button';
+      chip.addEventListener('click', () => send(question));
+      row.append(chip);
+    }
+    turn.append(row);
   }
 
   // Monta una superficie del store en el lienzo con su cabecera.
@@ -258,9 +358,10 @@
     if (!runtime) return null;
     const turn = openTurn({ replaceTurn });
     const head = buildHead({ title, folder, message, when, surfaceId, status });
-    turn.append(head.node);
     const stack = el('div', 'gen-stack a2-surface');
-    turn.append(stack);
+    const bubble = el('div', 'canvas-bubble');
+    bubble.append(head.node, stack, head.meta);
+    turn.append(bubble);
     state.mount = runtime.mount(stack, surfaceId);
     state.mounts.push(state.mount);
     state.mount.setBusy(state.busy);
@@ -274,10 +375,11 @@
   function renderLegacy({ title, folder, message, ui, when, replaceTurn = false }) {
     const turn = openTurn({ replaceTurn });
     const head = buildHead({ title, folder, message, when });
-    turn.append(head.node);
     const stack = el('div', 'gen-stack');
     window.renderGeneratedUi(stack, ui ?? []);
-    turn.append(stack);
+    const bubble = el('div', 'canvas-bubble');
+    bubble.append(head.node, stack, head.meta);
+    turn.append(bubble);
     state.head = head;
     finishTurn();
   }
@@ -527,6 +629,14 @@
       send(text);
     });
 
+    $('newQueryBtn')?.addEventListener('click', newQuery);
+
+    // Al scrollear el chat, las sugerencias se minimizan a una barrita para no
+    // quitarle espacio; al volver arriba se despliegan solas.
+    $('canvas').addEventListener('scroll', () => {
+      document.querySelector('.suggest')?.classList.toggle('is-mini', $('canvas').scrollTop >= 24);
+    }, { passive: true });
+
     $('micBtn').addEventListener('click', () => {
       window.Voice.dictate({
         input: $('composerInput'),
@@ -549,7 +659,7 @@
   }
 
   window.Agent = {
-    init, send, sendAction, showEntry, renderEmpty,
+    init, send, sendAction, showEntry, renderEmpty, newQuery,
     get isBusy() { return state.busy; },
     get activeSurface() { return state.active; },
   };

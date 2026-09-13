@@ -3,7 +3,6 @@
 // tools bancarias. Requiere GOOGLE_CLIENT_ID/SECRET y haber corrido
 // `npm run google:auth` una vez para generar el token con refresh_token.
 
-import { google } from 'googleapis';
 import { getAuthorizedClient, isGoogleConfigured } from './google/auth.js';
 
 const DEFAULT_CALENDAR_ID = 'primary';
@@ -21,9 +20,12 @@ const NOT_CONFIRMED_ERROR = {
     'Esta acción escribe en el calendario y requiere confirmación explícita de la persona. Genera primero la interfaz con la fecha propuesta y un Button que la confirme; no la ejecutes desde texto libre.',
 };
 
-function calendarClient() {
-  const auth = getAuthorizedClient();
+async function calendarClient() {
+  const auth = await getAuthorizedClient();
   if (!auth) return null;
+  // googleapis solo se instala si se usa Google Calendar: se importa on-demand
+  // para que el servidor bancario arranque aunque el paquete no esté presente.
+  const { google } = await import('googleapis');
   return google.calendar({ version: 'v3', auth });
 }
 
@@ -50,7 +52,7 @@ function shiftIsoDate(iso, days) {
 
 export function createCalendarTools({ bankingTools } = {}) {
   async function listEvents({ calendarId, timeMin, timeMax, query, maxResults } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     const { data } = await calendar.events.list({
       calendarId: calendarId || DEFAULT_CALENDAR_ID,
@@ -85,7 +87,7 @@ export function createCalendarTools({ bankingTools } = {}) {
     attendees,
     confirmed,
   } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (confirmed !== true) return NOT_CONFIRMED_ERROR;
     if (!summary) return { error: 'summary es requerido.' };
@@ -116,7 +118,7 @@ export function createCalendarTools({ bankingTools } = {}) {
     timeZone,
     confirmed,
   } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (confirmed !== true) return NOT_CONFIRMED_ERROR;
     if (!eventId) return { error: 'eventId es requerido.' };
@@ -136,8 +138,8 @@ export function createCalendarTools({ bankingTools } = {}) {
     return { success: true, id: data.id, htmlLink: data.htmlLink, summary: data.summary };
   }
 
-  async function deleteEvent({ calendarId, eventId, confirmed } = {}) {
-    const calendar = calendarClient();
+async function deleteEvent({ calendarId, eventId, confirmed } = {}) {
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (confirmed !== true) return NOT_CONFIRMED_ERROR;
     if (!eventId) return { error: 'eventId es requerido.' };
@@ -146,7 +148,7 @@ export function createCalendarTools({ bankingTools } = {}) {
   }
 
   async function checkAvailability({ timeMin, timeMax, calendarId } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (!timeMin || !timeMax) return { error: 'timeMin y timeMax son requeridos (ISO 8601).' };
     const id = calendarId || DEFAULT_CALENDAR_ID;

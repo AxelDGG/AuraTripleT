@@ -28,11 +28,11 @@ import {
 } from '/a2ui/index.js';
 
 const CATEGORY_ICONS = {
-  ingresos: '💵', supermercado: '🛒', restaurantes: '🍽️', entretenimiento: '🎬',
-  servicios: '💡', transporte: '🚗', compras: '🛍️', salud: '⚕️', hogar: '🏠',
-  vivienda: '🏢', ahorro: '🐷', transferencias: '↔️', 'pagos tdc': '💳',
+  ingresos: 'catIncome', supermercado: 'catCart', restaurantes: 'catFood', entretenimiento: 'catPlay',
+  servicios: 'catBolt', transporte: 'catCar', compras: 'catBag', salud: 'catHealth', hogar: 'catHome',
+  vivienda: 'catBuilding', ahorro: 'catSavings', transferencias: 'catTransfer', 'pagos tdc': 'catCard',
 };
-const ALERT_ICONS = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '⛔' };
+const ALERT_ICONS = { info: 'alertInfo', success: 'alertSuccess', warning: 'alertWarning', error: 'alertError' };
 const STAGGER_MS = 70;
 const CONFIRM_WINDOW_MS = 6000;
 
@@ -40,6 +40,13 @@ function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined && text !== null) node.textContent = String(text);
+  return node;
+}
+
+// Ícono SVG del set de la app (icons.js) metido en un contenedor.
+function iconEl(className, name) {
+  const node = el('div', className);
+  node.innerHTML = window.ICONS.icon(name);
   return node;
 }
 
@@ -397,7 +404,7 @@ const COMPONENTS = {
     if (props.title) card.append(el('h3', null, props.title));
     for (const t of Array.isArray(props.items) ? props.items.filter(isObject) : []) {
       const row = el('div', 'tx');
-      row.append(el('div', 't-icon', CATEGORY_ICONS[asText(t.category).toLowerCase()] ?? '💰'));
+      row.append(iconEl('t-icon', CATEGORY_ICONS[asText(t.category).toLowerCase()] ?? 'catMoney'));
       const main = el('div', 't-main');
       main.append(el('div', 't-desc', asText(t.description)));
       main.append(el('div', 't-meta', [t.date ? formatDate(t.date) : '', t.category].filter(Boolean).join(' · ')));
@@ -530,7 +537,7 @@ const COMPONENTS = {
   Alert(props) {
     const level = ['info', 'success', 'warning', 'error'].includes(props.level) ? props.level : 'info';
     const wrap = el('div', `c-alert ${level} gen`);
-    wrap.append(el('span', 'al-icon', ALERT_ICONS[level]));
+    wrap.append(iconEl('al-icon', ALERT_ICONS[level]));
     const body = el('div');
     if (props.title) body.append(el('b', null, props.title));
     body.append(el('span', null, asText(props.text)));

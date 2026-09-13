@@ -397,8 +397,16 @@
     return newEntry.id;
   }
 
+  // Quita el marcado "activa" (sin borrar nada del historial): se usa al
+  // empezar una consulta nueva para volver a la página principal.
+  function clearActive() {
+    state.activeId = null;
+    renderTimeline();
+    renderFolders();
+  }
+
   window.History = {
-    init, load, add, updateEntry, open, setLive, folderLabel, selectTab,
+    init, load, add, updateEntry, open, setLive, folderLabel, selectTab, clearActive,
     get entries() { return state.entries; },
   };
 })();
