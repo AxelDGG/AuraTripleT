@@ -19,8 +19,34 @@
 
 /* Separación uniforme entre componentes generados. */
 .canvas > .gen + .gen,
-.overlay-body > .gen + .gen,
 .gen-stack > .gen + .gen { margin-top: 12px; }
+
+/* En el overlay el gap lo pone flexbox; las reglas de margin-top no aplican */
+.overlay-body > .gen + .gen { margin-top: 0; }
+
+/* Orden visual en el overlay: gráfica → KPIs → saldos → tabla → otros → texto */
+.overlay-body > .c-header  { order: -1; display: none; } /* oculto: título ya está arriba */
+.overlay-body > .c-alert   { order: 0; }
+.overlay-body > .c-chart   { order: 1; }
+.overlay-body > .c-kpis    { order: 2; }
+.overlay-body > .c-balances { order: 3; }
+.overlay-body > .c-table   { order: 4; }
+.overlay-body > .c-progress { order: 5; }
+.overlay-body > .c-form    { order: 6; }
+/* cards genéricos que no son chart/table/text */
+.overlay-body > .card:not(.c-chart):not(.c-table):not(.c-text):not(.c-form):not(.c-progress) { order: 5; }
+.overlay-body > .c-text    { order: 7; }
+
+/* Texto/insights en el overlay: card blanca con acento izquierdo */
+.overlay-body > .c-text {
+  border-left: 3px solid var(--red);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.overlay-body > .c-text p,
+.overlay-body > .c-text li { font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
+.overlay-body > .c-text strong { color: var(--ink); font-weight: 700; }
 
 .card.gen > h3 {
   font-size: 14px;
@@ -234,8 +260,9 @@
   display: grid; place-items: center;
   border-radius: 50%;
   background: var(--red-tint);
-  font-size: 16px;
+  color: var(--red-600);
 }
+.t-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .t-main { flex: 1; min-width: 0; }
 .t-desc { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t-meta { margin-top: 2px; font-size: 11px; color: var(--muted); }
@@ -290,7 +317,8 @@
   line-height: 1.5;
   box-shadow: var(--shadow-sm);
 }
-.c-alert .al-icon { flex: none; font-size: 15px; line-height: 1.4; }
+.c-alert .al-icon { flex: none; display: grid; place-items: center; width: 20px; height: 20px; }
+.c-alert .al-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .c-alert b { display: block; margin-bottom: 2px; }
 .c-alert.info    { border-color: rgba(31, 95, 191, 0.30); background: #eef3fc; }
 .c-alert.success { border-color: rgba(15, 143, 77, 0.30); background: #ecf7f0; }

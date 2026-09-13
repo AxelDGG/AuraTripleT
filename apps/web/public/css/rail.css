@@ -5,10 +5,56 @@
   flex-direction: column;
   gap: 12px;
   min-height: 0;
-  padding: 12px 14px 14px;
+  width: var(--rail-w);
+  padding: 8px 14px 14px;
   background: linear-gradient(180deg, var(--rail) 0%, var(--rail-2) 100%);
   border-left: 1px solid rgba(235, 0, 41, 0.18);
+  overflow: hidden;
+  position: relative;
+  transition: width 320ms var(--ease-out), padding 320ms var(--ease-out);
 }
+.rail.is-collapsed {
+  width: 60px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.rail.is-collapsed > *:not(.rail-toggle-btn):not(.rail-resize):not(.rail-help-btn) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast);
+}
+.rail.is-collapsed .rail-help-btn { opacity: 0; pointer-events: none; transition: opacity var(--dur-fast); }
+
+/* Handle de arrastrar (franja de 6 px en el borde izquierdo del riel) */
+.rail-resize {
+  position: absolute;
+  left: 0; top: 0;
+  width: 6px; height: 100%;
+  cursor: col-resize;
+  z-index: 4;
+  transition: background var(--dur-fast);
+}
+.rail-resize:hover,
+.rail-resize.is-dragging { background: rgba(235, 0, 41, 0.18); }
+
+/* Botón toggle — pegado al borde izquierdo del riel, alineado con el padding del workspace */
+.rail-toggle-btn {
+  position: absolute;
+  left: 8px; top: 18px;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: var(--r-md);
+  color: var(--red-700);
+  z-index: 5;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.rail-toggle-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur) var(--ease-spring); }
+.rail-toggle-btn:hover { background: rgba(255,255,255,0.55); }
+.rail.is-collapsed .rail-toggle-btn { left: 50%; transform: translateX(-50%); }
+.rail.is-collapsed .rail-toggle-btn svg { transform: rotate(180deg); }
+
+/* Empujamos el contenido del riel para que no quede bajo el botón toggle */
+.rail-tabs { margin-top: 44px; }
 
 /* ---------- Pestañas ---------- */
 /* Control segmentado sobre el rosa del riel: la activa se levanta en blanco y
@@ -58,13 +104,13 @@
   padding: 0 6px 0 12px;
   flex: none;
   border-radius: var(--r-pill);
-  background: var(--red);
-  color: #fff;
-  box-shadow: var(--shadow-red);
-  transition: box-shadow var(--dur) var(--ease-out);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1.5px solid rgba(235, 0, 41, 0.15);
+  color: var(--ink);
+  transition: box-shadow var(--dur) var(--ease-out), border-color var(--dur) var(--ease-out);
 }
-.rail-search:focus-within { box-shadow: 0 0 0 4px rgba(235, 0, 41, 0.20); }
-.rs-icon { flex: none; color: #fff; }
+.rail-search:focus-within { box-shadow: 0 0 0 3px rgba(235, 0, 41, 0.14); border-color: rgba(235, 0, 41, 0.35); }
+.rs-icon { flex: none; color: var(--muted); }
 .rs-icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .rail-search input {
   flex: 1;
@@ -72,22 +118,22 @@
   border: 0;
   background: none;
   outline: none;
-  color: #fff;
+  color: var(--ink);
   font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
 }
-.rail-search input::placeholder { color: rgba(255, 255, 255, 0.82); }
+.rail-search input::placeholder { color: var(--muted); font-weight: 500; }
 .rail-search input::-webkit-search-cancel-button { display: none; }
 .rs-clear {
   width: 24px; height: 24px;
   flex: none;
   display: grid; place-items: center;
   border-radius: 50%;
-  color: #fff;
-  transition: background var(--dur-fast);
+  color: var(--muted);
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
-.rs-clear:hover { background: rgba(255, 255, 255, 0.22); }
+.rs-clear:hover { background: var(--red-tint); color: var(--red-600); }
 .rs-clear svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 
 /* ---------- Paneles ---------- */
@@ -101,7 +147,8 @@
   padding-right: 2px;
   outline-offset: -2px;
 }
-.rail-panel.is-active { animation: fade var(--dur) var(--ease-out) both; }
+.rail-panel.is-active { animation: panelSlide var(--dur) var(--ease-out) both; }
+@keyframes panelSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* ---------- Pestaña HISTORIAL: línea de tiempo ---------- */
 .timeline { display: flex; flex-direction: column; gap: 5px; }
@@ -197,18 +244,60 @@
 .tl-time { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* Entrada en vivo mientras el agente construye */
-.tl-item.is-live { background: #fff; border-color: var(--red); }
-.tl-item.is-live .tl-thumb { display: grid; place-items: center; background: var(--red-tint); }
+.tl-item.is-live {
+  background: #fff;
+  border-color: var(--red);
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(235, 0, 41, 0); }
+  50%       { box-shadow: 0 0 0 3px rgba(235, 0, 41, 0.12); }
+}
+.tl-item.is-live .tl-thumb {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--red-tint) 0%, var(--red-tint-2) 100%);
+}
 .tl-item.is-live .tl-thumb::after { content: none; }
-.tl-live-dots { display: flex; gap: 4px; }
+
+/* Dots más grandes y con onda */
+.tl-live-dots { display: flex; gap: 5px; align-items: center; }
 .tl-live-dots span {
-  width: 5px; height: 5px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   background: var(--red);
-  animation: bounceDot 1.2s var(--ease-out) infinite;
+  animation: waveDot 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.tl-live-dots span:nth-child(2) { animation-delay: 0.15s; }
-.tl-live-dots span:nth-child(3) { animation-delay: 0.3s; }
+.tl-live-dots span:nth-child(1) { animation-delay: 0s; }
+.tl-live-dots span:nth-child(2) { animation-delay: 0.18s; }
+.tl-live-dots span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes waveDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30%           { transform: translateY(-5px); opacity: 1; }
+}
+
+/* "Pensando…" text estilizado */
+.tl-live-status {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--red-600);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tl-live-status::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: livePing 1.4s ease-in-out infinite;
+  flex: none;
+}
+@keyframes livePing {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.7); }
+}
 
 .tl-empty {
   margin-top: 14px;
@@ -228,13 +317,51 @@
 .folders {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px; /* más espacio para que las cartas apiladas no se toquen */
 }
 
 .folder {
+  position: relative;
+  z-index: 0;
   border-radius: var(--r-md);
   animation: rise var(--dur-slow) var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 65ms);
+}
+
+/* Cartas apiladas: visible solo con 2+ elementos */
+.folder::before, .folder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  height: 48px;
+  border-radius: var(--r-md);
+  z-index: -1;
+  opacity: 0;
+  transition:
+    transform 340ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    opacity var(--dur) var(--ease-out);
+}
+.folder::before {
+  background: linear-gradient(135deg, var(--red-600) 0%, var(--red-700) 100%);
+  transform: translateY(5px) scaleX(0.93);
+}
+.folder::after {
+  background: linear-gradient(135deg, var(--red-700) 0%, var(--red-800) 100%);
+  transform: translateY(10px) scaleX(0.86);
+}
+
+/* 2 items: una carta de fondo */
+.folder[data-stack="2"]::before { opacity: 1; }
+/* 3+ items: dos cartas de fondo */
+.folder[data-stack="3"]::before,
+.folder[data-stack="3"]::after { opacity: 1; }
+
+/* Al abrir: las cartas se abren como un abanico */
+.folder.is-open::before {
+  transform: translateY(3px) translateX(-9px) rotate(-2.5deg) scaleX(0.93);
+}
+.folder.is-open::after {
+  transform: translateY(3px) translateX(9px) rotate(2.5deg) scaleX(0.86);
 }
 
 .folder-head {
@@ -289,7 +416,7 @@
   overflow: hidden;
   border-radius: 0 0 var(--r-md) var(--r-md);
   background: rgba(255, 255, 255, 0.62);
-  transition: max-height var(--dur) var(--ease-out);
+  transition: max-height 340ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .folder.is-open .folder-drawer { background: rgba(255, 255, 255, 0.86); }
 
@@ -350,3 +477,38 @@
 .folder.is-filtered .folder-head { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), var(--shadow-red); }
 .folder.is-muted { opacity: 0.45; }
 .folder.is-muted .folder-head { box-shadow: none; }
+
+/* Alineación con el padding reducido del workspace en pantallas medianas */
+@media (max-width: 1080px) {
+  .rail-toggle-btn { top: 14px; }
+  .rail-tabs { margin-top: 40px; }
+}
+
+/* ---------- Drawer móvil (< 768 px) ---------- */
+@media (max-width: 767px) {
+  .rail {
+    position: fixed !important;
+    right: 0; top: 0;
+    height: 100dvh;
+    z-index: 30;
+    width: min(300px, 88vw) !important;
+    transform: translateX(110%);
+    transition: transform 320ms var(--ease-out);
+    border-left: 1px solid var(--line) !important;
+    border-top: none !important;
+    box-shadow: var(--shadow-pop);
+  }
+  .rail.is-drawer-open {
+    transform: translateX(0);
+  }
+  /* En móvil, is-collapsed no aplica visualmente — el drawer está abierto o cerrado */
+  .rail.is-collapsed {
+    width: min(300px, 88vw) !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+  .rail.is-collapsed > *:not(.rail-toggle-row) {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}

@@ -7,7 +7,7 @@
 
   const HISTORY_LIMIT = 12;
 
-  const state = { busy: false, offline: false, model: null, history: [] };
+  const state = { busy: false, offline: false, model: null, history: [], threadEntryId: null };
 
   // ---------- Estado en la franja superior ----------
 
@@ -29,37 +29,84 @@
 
   // ---------- Lienzo ----------
 
+  function setHasContent(on) {
+    document.querySelector('.workspace')?.classList.toggle('has-content', on);
+  }
+
+  function ensureComposerInWorkspace() {
+    const composer = $('composer');
+    const workspace = document.querySelector('.workspace');
+    if (composer && workspace && composer.parentElement !== workspace) {
+      workspace.append(composer);
+    }
+  }
+
   function renderEmpty() {
     const { t } = window.I18N;
     const canvas = $('canvas');
+    const composer = $('composer');
+    const workspace = document.querySelector('.workspace');
+
+    // Si el composer estaba dentro del canvas (estado vacío anterior), extráelo antes
+    // de limpiar el canvas para no perder el elemento del DOM.
+    if (composer && composer.closest('#canvas')) workspace?.append(composer);
+
     const empty = el('div', 'canvas-empty');
     const orb = el('div', 'orb');
     orb.append(window.ICONS.el('sparkle'));
-    empty.append(orb, el('h2', null, t('canvas.title')), el('p', null, t('canvas.text')));
-    // Los atajos viven arriba, en las tarjetas de sugerencia: aquí solo se
-    // apunta hacia ellas para no repetir la misma lista dos veces en pantalla.
-    const hint = el('p', 'canvas-hint');
-    hint.append(window.ICONS.el('chevron'), el('span', null, t('canvas.hint')));
-    empty.append(hint);
+
+    const rawName = $('customerName')?.textContent ?? '';
+    const firstName = (rawName && rawName !== '…' && rawName !== 'Banca en línea')
+      ? rawName.split(' ')[0] : '';
+    const title = firstName ? `¿Qué quieres ver hoy, ${firstName}?` : t('canvas.title');
+
+    empty.append(orb, el('h2', null, title), el('p', null, t('canvas.text')));
+
+    // Botón de info (reemplaza el hint card siempre visible)
+    const infoBtn = el('button', 'help-btn canvas-info-btn');
+    infoBtn.type = 'button';
+    infoBtn.dataset.help = 'canvas';
+    infoBtn.setAttribute('aria-label', 'Cómo empezar');
+    infoBtn.append(window.ICONS.el('alertInfo'));
+    empty.append(infoBtn);
+
+    // Mueve el composer al centro, justo bajo el saludo (estilo Claude)
+    if (composer) empty.append(composer);
+
     canvas.replaceChildren(empty);
+    setHasContent(false);
+    state.threadEntryId = null;
+    state.isInThread = false;
   }
 
-  function renderThinking() {
+  function renderThinking(prompt) {
+    ensureComposerInWorkspace();
     const canvas = $('canvas');
+    canvas.querySelector('.thinking')?.remove();
+    if (!state.isInThread) {
+      // Hilo nuevo: limpiar contenido anterior antes del spinner
+      canvas.replaceChildren();
+    } else if (prompt) {
+      canvas.append(el('div', 'conv-question', prompt));
+    }
     const box = el('div', 'thinking');
     box.append(el('span', 'spinner'));
     const label = el('span', 'label', window.I18N.t('agent.thinking'));
     const tools = el('div', 'tools');
     box.append(label, tools);
-    canvas.replaceChildren(box);
+    canvas.append(box);
+    canvas.scrollTop = canvas.scrollHeight;
     return { label, tools };
   }
 
-  // Cabecera + componentes de una visualización, sea recién generada o traída
-  // del historial.
+  // En primer turno reemplaza el canvas; en hilo apila el nuevo turno.
   function renderSpec({ title, folder, message, ui, when }) {
     const canvas = $('canvas');
-    canvas.replaceChildren();
+    canvas.querySelector('.thinking')?.remove();
+
+    if (!state.isInThread) canvas.replaceChildren();
+
+    const turn = el('div', 'conv-turn');
 
     const head = el('div', 'canvas-head');
     const main = el('div');
@@ -70,8 +117,6 @@
     const meta = el('div', 'canvas-meta');
     if (folder) meta.append(el('span', 'folder-chip', window.History.folderLabel(folder)));
     if (when) meta.append(el('span', 'muted', window.I18N.fmtWhen(when)));
-    // Las gráficas densas se aprecian mejor sin el riel al lado: el mismo spec
-    // se vuelve a pintar en el overlay, a todo el ancho del diálogo.
     const expand = el('button', 'canvas-expand');
     expand.type = 'button';
     expand.title = window.I18N.t('canvas.expand');
@@ -85,15 +130,28 @@
     }));
     meta.append(expand);
     head.append(meta);
-    canvas.append(head);
+    turn.append(head);
 
     const stack = el('div', 'gen-stack');
     window.renderGeneratedUi(stack, ui ?? []);
-    canvas.append(stack);
-    canvas.scrollTop = 0;
+    turn.append(stack);
+    canvas.append(turn);
+
+    if (state.isInThread) {
+      canvas.scrollTop = canvas.scrollHeight;
+    } else {
+      canvas.scrollTop = 0;
+      state.isInThread = true;
+    }
+    setHasContent(true);
   }
 
   function showEntry(entry) {
+    // Abrir un item del historial siempre arranca una vista limpia;
+    // el threadEntryId apunta a ese item para que los follow-ups lo actualicen.
+    state.isInThread = false;
+    state.threadEntryId = entry.id ?? null;
+    state.history = [];
     renderSpec({
       title: entry.title,
       folder: entry.folder,
@@ -105,14 +163,21 @@
 
   // ---------- Envío ----------
 
-  async function send(text, { fromVoice = false } = {}) {
+  async function send(text, { fromVoice = false, newThread = false } = {}) {
     const { t } = window.I18N;
     const prompt = String(text ?? '').trim();
     if (state.busy || !prompt) return;
 
+    // Visualización nueva: descarta el hilo y contexto anteriores
+    if (newThread) {
+      state.threadEntryId = null;
+      state.isInThread = false;
+      state.history = [];
+    }
+
     window.Voice?.silence();
     setBusy(true);
-    const thinking = renderThinking();
+    const thinking = renderThinking(prompt);
     window.History.setLive(true, prompt);
 
     const toolsSeen = new Set();
@@ -130,7 +195,10 @@
             case 'tool_call':
               if (!toolsSeen.has(event.name)) {
                 toolsSeen.add(event.name);
-                thinking.tools.append(el('span', null, `⚙ ${event.name}`));
+                const chip = el('span', 'tool-chip');
+                chip.appendChild(window.ICONS.el('gear'));
+                chip.appendChild(el('span', null, event.name));
+                thinking.tools.append(chip);
               }
               thinking.label.textContent = t('agent.tool', { tool: event.name });
               break;
@@ -140,10 +208,14 @@
               if (fromVoice) window.Voice?.speak(event.message, window.I18N.locale());
               break;
             case 'history':
-              // La API ya la guardó en Tiger: entra a la línea de tiempo y a su carpeta.
               window.History.setLive(false);
-              window.History.add(event.entry);
-              window.UI.toast(t('agent.saved', { folder: window.History.folderLabel(event.entry.folder) }), 'success');
+              if (state.threadEntryId) {
+                state.threadEntryId = window.History.updateEntry(state.threadEntryId, event.entry);
+              } else {
+                window.History.add(event.entry);
+                state.threadEntryId = event.entry.id;
+                window.UI.toast(t('agent.saved', { folder: window.History.folderLabel(event.entry.folder) }), 'success');
+              }
               break;
             case 'error':
               window.UI.toast(event.text, 'error');

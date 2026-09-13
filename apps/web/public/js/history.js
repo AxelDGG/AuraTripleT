@@ -123,7 +123,9 @@
     thumb.append(dots);
     const main = el('span', 'tl-main');
     main.append(el('span', 'tl-title', title));
-    main.append(el('span', 'tl-meta', window.I18N.t('agent.thinking')));
+    const meta = el('span', 'tl-meta');
+    meta.append(el('span', 'tl-live-status', window.I18N.t('agent.thinking')));
+    main.append(meta);
     item.append(thumb, main);
     return item;
   }
@@ -170,6 +172,7 @@
   function buildFolder(folder, index) {
     const wrap = el('div', 'folder');
     wrap.dataset.folder = folder.id;
+    wrap.dataset.stack = folder.total >= 3 ? '3' : folder.total === 2 ? '2' : '1';
     wrap.style.setProperty('--i', String(index));
 
     const head = el('button', 'folder-head');
@@ -382,8 +385,20 @@
     window.addEventListener('resize', resizeOpenDrawer);
   }
 
+  function updateEntry(oldId, newEntry) {
+    const idx = state.entries.findIndex((e) => e.id === oldId);
+    if (idx === -1) { add(newEntry); return newEntry.id; }
+    state.entries[idx] = newEntry;
+    const folder = state.folders.find((f) => f.id === newEntry.folder);
+    if (folder && newEntry.folder !== state.entries[idx]?.folder) folder.total += 1;
+    state.activeId = newEntry.id;
+    renderTimeline();
+    renderFolders();
+    return newEntry.id;
+  }
+
   window.History = {
-    init, load, add, open, setLive, folderLabel, selectTab,
+    init, load, add, updateEntry, open, setLive, folderLabel, selectTab,
     get entries() { return state.entries; },
   };
 })();

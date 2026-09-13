@@ -22,13 +22,14 @@
     <!-- ===== Barra superior roja ===== -->
     <header class="topbar">
       <div class="brand">
-        <img class="brand-lockup" src="img/Banorte_Header.png" alt="Banorte" width="282" height="74" />
+        <img class="brand-lockup" src="img/Banorte_Header.png" alt="Banorte" width="282" height="74" style="height:36px" />
         <img class="brand-mark" src="img/Banorte_White.png" alt="Banorte" width="126" height="70" />
       </div>
       <nav class="topbar-nav" aria-label="Accesos">
         <button type="button" class="top-link" id="locationBtn"><i data-icon="location"></i><span data-i18n="top.location">UBICACIÓN</span></button>
         <button type="button" class="top-link" id="contactBtn"><img class="top-img" src="img/Phone_White.png" alt="" width="83" height="83" /><span data-i18n="top.contact">CONTACTO</span></button>
         <button type="button" class="top-exit" id="exitBtn"><i data-icon="logout"></i><span data-i18n="top.exit">SALIR</span></button>
+        <button type="button" class="rail-open-btn" id="railOpenBtn" aria-label="Abrir historial"><i data-icon="history"></i></button>
       </nav>
     </header>
 
@@ -50,6 +51,7 @@
         <section class="suggest" aria-labelledby="suggestTitle">
           <div class="suggest-head">
             <h1 class="suggest-title" id="suggestTitle" data-i18n="suggest.title">VISUALIZACIONES SUGERIDAS</h1>
+            <button type="button" class="help-btn" data-help="suggest" aria-label="Ayuda sobre visualizaciones sugeridas">?</button>
             <div class="suggest-nav">
               <button type="button" class="sg-nav" id="suggestPrev" data-i18n-label="suggest.prev" aria-label="Anterior"><i data-icon="chevronLeft"></i></button>
               <button type="button" class="sg-nav" id="suggestNext" data-i18n-label="suggest.next" aria-label="Siguiente"><i data-icon="chevronRight"></i></button>
@@ -58,6 +60,9 @@
           <div class="suggest-viewport">
             <ul class="suggest-track" id="suggestTrack" role="list"></ul>
           </div>
+          <button type="button" class="suggest-toggle" id="suggestToggle" aria-label="Mostrar/ocultar sugerencias">
+            <i data-icon="chevron"></i>
+          </button>
         </section>
 
         <!-- Lienzo: la visualización activa, el estado del agente o el vacío inicial -->
@@ -67,16 +72,23 @@
           <div class="composer-field">
             <input type="text" id="composerInput" autocomplete="off" maxlength="4000"
               data-i18n-placeholder="composer.placeholder" placeholder="Escribe o habla con el agente Banorte…" />
+            <button type="button" class="help-btn" data-help="composer" aria-label="Ayuda sobre el chat">?</button>
             <button type="submit" class="composer-send" id="composerSend" data-i18n-label="composer.send" aria-label="Enviar"><i data-icon="send"></i></button>
           </div>
           <button type="button" class="mic-btn" id="micBtn" aria-pressed="false" data-i18n-label="composer.mic" aria-label="Dictar por voz">
             <span class="mic-ring" aria-hidden="true"></span>
             <i data-icon="mic"></i>
           </button>
+          <button type="button" class="maya-btn" id="mayaBtn" aria-pressed="false" aria-label="Hablar con Maya">
+            <i data-icon="convAI"></i>
+          </button>
         </form>
       </main>
 
       <aside class="rail" id="rail" aria-label="Historial y colección">
+        <div class="rail-resize" id="railResize" aria-hidden="true"></div>
+        <button type="button" class="rail-toggle-btn" id="railToggle" aria-label="Ocultar/mostrar panel"><i data-icon="panelToggle"></i></button>
+        <button type="button" class="help-btn rail-help-btn" data-help="history" aria-label="Ayuda sobre el historial">?</button>
         <div class="rail-tabs" role="tablist" aria-label="Vistas del historial">
           <button type="button" class="rail-tab is-active" id="tabHistory" role="tab" aria-selected="true" aria-controls="panelHistory" data-tab="history">
             <i data-icon="history"></i><span data-i18n="rail.tab.history">HISTORIAL</span>
@@ -109,16 +121,18 @@
   <div class="overlay" id="overlay" hidden>
     <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
       <header class="overlay-head">
-        <div>
-          <span class="folder-chip" id="overlayFolder"></span>
-          <h2 id="overlayTitle"></h2>
-          <small id="overlayMeta"></small>
-        </div>
+        <span class="folder-chip overlay-folder" id="overlayFolder" hidden></span>
+        <small class="overlay-meta" id="overlayMeta" hidden></small>
         <button type="button" class="overlay-close" id="overlayClose" data-i18n-label="overlay.close" aria-label="Cerrar"><i data-icon="close"></i></button>
       </header>
+      <div class="overlay-title-bar">
+        <h2 id="overlayTitle"></h2>
+      </div>
       <div class="overlay-body" id="overlayBody"></div>
     </div>
   </div>
+
+  <div class="rail-backdrop" id="railBackdrop" aria-hidden="true"></div>
 
   <div class="toast-root" id="toastRoot" aria-live="polite"></div>
 

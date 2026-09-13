@@ -14,10 +14,10 @@
     { id: 'flujo', icon: 'chartArea', folder: 'movimientos' },
     { id: 'reparto', icon: 'chartPie', folder: 'movimientos' },
     { id: 'comparativo', icon: 'chartStack', folder: 'gastos' },
-    { id: 'saldos', icon: 'wallet', folder: 'movimientos' },
-    { id: 'tarjeta', icon: 'card', folder: 'movimientos' },
-    { id: 'credito', icon: 'target', folder: 'promociones' },
-    { id: 'fx', icon: 'exchange', folder: 'otros' },
+    { id: 'saldos', icon: 'chartKpi', folder: 'movimientos' },
+    { id: 'tarjeta', icon: 'chartProgress', folder: 'movimientos' },
+    { id: 'credito', icon: 'chartAmort', folder: 'promociones' },
+    { id: 'fx', icon: 'chartFx', folder: 'otros' },
   ];
 
   function buildCard(item, index) {
@@ -38,7 +38,7 @@
     card.append(tile, body, el('span', 'sg-tag', t(`folder.${item.folder}`)));
     card.addEventListener('click', () => {
       if (window.Agent.isBusy) return;
-      window.Agent.send(t(`suggest.${item.id}.prompt`));
+      window.Agent.send(t(`suggest.${item.id}.prompt`), { newThread: true });
     });
 
     li.append(card);

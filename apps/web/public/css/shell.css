@@ -15,7 +15,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 0 18px;
-  background: linear-gradient(180deg, var(--red) 0%, var(--red-600) 100%);
+  background: url('/assets/header.png') center/cover, var(--red);
   color: #fff;
   box-shadow: var(--shadow-md);
   position: relative;
@@ -23,9 +23,8 @@
 }
 
 .brand { display: flex; align-items: center; gap: 10px; }
-/* Logotipo oficial: el lockup completo manda; la marca sola entra en angosto. */
-.brand-lockup { height: 26px; width: auto; display: block; }
-.brand-mark { height: 26px; width: auto; display: none; }
+.brand-lockup { height: 44px; width: auto; display: block; }
+.brand-mark { height: 30px; width: auto; display: none; }
 
 .topbar-nav { display: flex; align-items: center; gap: 6px; }
 
@@ -106,8 +105,9 @@
 .stage {
   grid-row: 4;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 0;
+  background: url('/assets/fondo.png') center/cover;
 }
 
 .workspace {
@@ -129,7 +129,7 @@
   scroll-behavior: smooth;
 }
 
-/* Vacío inicial: orbe + sugerencias */
+/* Vacío inicial: orbe + saludo + composer centrado (estilo Claude) */
 .canvas-empty {
   height: 100%;
   display: flex;
@@ -139,9 +139,61 @@
   gap: 14px;
   text-align: center;
   animation: fade var(--dur-slow) var(--ease-out) both;
+  padding: 0 24px;
+}
+
+/* El composer dentro del canvas-empty se centra y tiene ancho máximo */
+.canvas-empty .composer {
+  width: min(600px, 100%);
+  margin-top: 6px;
+  align-self: center;
+}
+
+/* Botón de info circular con ícono SVG */
+.canvas-info-btn {
+  width: 26px; height: 26px;
+}
+.canvas-info-btn svg {
+  width: 16px; height: 16px;
+  fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* Botón Maya — hermano del mic-btn en el composer */
+.maya-btn {
+  position: relative;
+  width: 46px; height: 46px;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--ink-2);
+  border: 1.5px solid var(--line-2);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.maya-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.maya-btn:hover { background: var(--red-tint); color: var(--red-700); border-color: var(--red-tint-2); transform: scale(1.04); }
+.maya-btn.is-active {
+  background: linear-gradient(140deg, var(--red) 0%, var(--red-600) 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--shadow-red);
+}
+
+/* Panel flotante del widget de Maya */
+.maya-panel {
+  position: fixed;
+  z-index: 70;
+  bottom: 80px;
+  right: 24px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: rise var(--dur) var(--ease-out) both;
 }
 .orb {
-  width: 62px; height: 62px;
+  width: 80px; height: 80px;
   display: grid; place-items: center;
   border-radius: 50%;
   background: linear-gradient(140deg, var(--red) 0%, var(--red-700) 100%);
@@ -149,7 +201,7 @@
   box-shadow: var(--shadow-red);
   position: relative;
 }
-.orb svg { width: 28px; height: 28px; fill: currentColor; stroke: none; }
+.orb svg { width: 34px; height: 34px; fill: currentColor; stroke: none; }
 .orb::after {
   content: '';
   position: absolute; inset: 0;
@@ -157,31 +209,36 @@
   border: 2px solid var(--red);
   animation: pulseRing 2.4s var(--ease-out) infinite;
 }
-.canvas-empty h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; }
-.canvas-empty p { max-width: 46ch; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.canvas-empty h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.canvas-empty p { max-width: 38ch; color: var(--muted); font-size: 14px; line-height: 1.65; }
 
-/* Puntero a las tarjetas de sugerencia de arriba. */
+/* Hint — card flotante con icono de info */
 .canvas-hint {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 4px;
-  padding: 7px 14px 7px 11px;
-  border-radius: var(--r-pill);
-  background: var(--red-tint);
-  color: var(--red-700);
-  font-size: 12px;
-  font-weight: 600;
+  gap: 10px;
+  padding: 11px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  max-width: 36ch;
+  text-align: left;
+  animation: rise var(--dur-slow) var(--ease-out) 0.5s both;
 }
 .canvas-hint svg {
-  width: 15px; height: 15px;
+  width: 16px; height: 16px;
   flex: none;
-  fill: none; stroke: currentColor; stroke-width: 2.2;
+  fill: none; stroke: var(--red-600); stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round;
-  transform: rotate(180deg);
-  animation: nudgeUp 2.2s var(--ease-out) infinite;
 }
-@keyframes nudgeUp { 0%, 70%, 100% { transform: rotate(180deg) translateY(0); } 35% { transform: rotate(180deg) translateY(2px); } }
+@keyframes nudgeUp {
+  0%, 65%, 100% { transform: rotate(180deg) translateY(0); }
+  32%           { transform: rotate(180deg) translateY(3px); }
+}
 
 /* .chip sigue vivo: es el botón "Reintentar" del banner de error. */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 640px; margin-top: 4px; }
@@ -222,7 +279,7 @@
 }
 .thinking .label { font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
 .thinking .tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
-.thinking .tools span {
+.thinking .tools span, .thinking .tools .tool-chip {
   font-family: var(--mono);
   font-size: 10.5px;
   padding: 3px 8px;
@@ -231,6 +288,8 @@
   color: var(--red-700);
   animation: pop var(--dur) var(--ease-spring) both;
 }
+.tool-chip { display: inline-flex; align-items: center; gap: 4px; }
+.tool-chip svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
 /* Cabecera de la visualización activa */
 .canvas-head {
@@ -252,6 +311,28 @@
 }
 .canvas-expand svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .canvas-expand:hover { background: var(--red-tint); color: var(--red-600); }
+
+/* Turnos del hilo de conversación */
+.conv-turn {
+  padding-bottom: 22px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+  animation: rise var(--dur) var(--ease-out) both;
+}
+.conv-turn:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.conv-question {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  border-radius: var(--r-pill);
+  background: var(--surface-3);
+  color: var(--ink-2);
+  font-size: 13.5px;
+  font-weight: 600;
+  max-width: 70ch;
+}
 
 .folder-chip {
   display: inline-block;
@@ -329,55 +410,92 @@
 .mic-btn.is-listening { background: linear-gradient(140deg, var(--red-600) 0%, var(--red-800) 100%); }
 .mic-btn.is-listening .mic-ring { opacity: 1; animation: pulseRing 1.5s var(--ease-out) infinite; }
 
-/* ---------- Overlay de detalle ---------- */
+/* ---------- Overlay de detalle — card blanca limpia ---------- */
 .overlay {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: rgba(20, 20, 28, 0.45);
-  backdrop-filter: blur(3px);
+  padding: 20px;
+  background: rgba(20, 20, 28, 0.55);
+  backdrop-filter: blur(4px);
   animation: fade var(--dur) var(--ease-out) both;
 }
 .overlay.is-closing { animation: fade var(--dur) var(--ease-out) reverse both; }
 
 .overlay-card {
-  width: min(900px, 100%);
-  max-height: 86dvh;
+  width: min(880px, 100%);
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
-  border-radius: var(--r-lg);
+  border-radius: 20px;
   background: var(--surface);
-  box-shadow: var(--shadow-pop);
+  box-shadow: 0 32px 80px -20px rgba(20, 20, 28, 0.50), 0 0 0 1px var(--line);
   overflow: hidden;
   animation: rise var(--dur) var(--ease-spring) both;
 }
 .overlay.is-closing .overlay-card { animation: rise var(--dur) var(--ease-out) reverse both; }
 
+/* Fila superior: carpeta (izquierda) + meta + cerrar (derecha) — todo blanco */
 .overlay-head {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--line);
-}
-.overlay-head h2 { margin-top: 6px; font-size: 17px; font-weight: 800; }
-.overlay-head small { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
-.overlay-close {
-  margin-left: auto;
-  width: 32px; height: 32px;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px 8px;
+  background: var(--surface);
   flex: none;
+}
+.overlay-head .overlay-folder {
+  background: var(--red-tint);
+  color: var(--red-700);
+  font-size: 10px;
+  padding: 3px 9px;
+  letter-spacing: 0.07em;
+  flex: none;
+}
+.overlay-head .overlay-meta {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.overlay-close {
+  flex: none;
+  width: 30px; height: 30px;
   display: grid; place-items: center;
   border-radius: 50%;
   color: var(--muted);
   transition: background var(--dur-fast), color var(--dur-fast);
 }
 .overlay-close:hover { background: var(--surface-3); color: var(--ink); }
-.overlay-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.overlay-close svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
 
-.overlay-body { padding: 18px; overflow-y: auto; }
+/* Título grande e inconfundible */
+.overlay-title-bar {
+  padding: 2px 24px 18px;
+  background: var(--surface);
+  border-bottom: 2px solid var(--line);
+  flex: none;
+}
+.overlay-title-bar h2 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.15;
+}
+
+/* Cuerpo: fondo gris suave para que cada card destaque */
+.overlay-body {
+  padding: 20px 24px 28px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
 
 /* ---------- Toasts ---------- */
 .toast-root {
@@ -407,20 +525,103 @@
 .toast.success { background: var(--green); }
 .toast i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; opacity: 0.7; }
 
+/* ---------- Botones de ayuda ("?") ---------- */
+.help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.help-btn:hover { background: var(--red-tint); color: var(--red-700); border-color: var(--red-tint-2); }
+
+/* En el riel: posición absoluta al nivel del toggle */
+.rail-help-btn {
+  position: absolute;
+  right: 10px; top: 21px;
+  z-index: 5;
+}
+
+/* Popover de ayuda — se monta en <body> vía JS */
+.help-popover {
+  position: fixed;
+  z-index: 80;
+  width: min(260px, calc(100vw - 16px));
+  padding: 11px 14px 13px;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: rgba(255,255,255,0.88);
+  font-size: 12.5px;
+  line-height: 1.55;
+  box-shadow: var(--shadow-pop);
+  animation: rise var(--dur) var(--ease-out) both;
+  pointer-events: auto;
+}
+.help-popover strong {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 5px;
+}
+.help-popover.is-closing { animation: rise var(--dur-fast) var(--ease-out) reverse both; }
+
+/* ---------- Botón para abrir el riel en móvil ---------- */
+.rail-open-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: var(--r-sm);
+  color: #fff;
+  transition: background var(--dur-fast);
+}
+.rail-open-btn svg {
+  width: 18px; height: 18px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.rail-open-btn:hover { background: rgba(255,255,255,0.16); }
+
+/* Fondo que cubre el contenido cuando el drawer está abierto en móvil */
+.rail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: rgba(20, 20, 28, 0.45);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms var(--ease-out);
+}
+.rail-backdrop.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* ---------- Adaptación a pantallas angostas ---------- */
 @media (max-width: 1080px) {
   :root { --rail-w: 250px; }
   .workspace { padding: 14px 16px 12px; }
 }
-@media (max-width: 860px) {
-  body { overflow: auto; }
-  .app { height: auto; min-height: 100dvh; }
-  .stage { grid-template-columns: minmax(0, 1fr); }
-  .rail { border-left: 0 !important; border-top: 1px solid var(--line); }
-  /* Sin altura de ventana que reparta, el panel se acota solo para que el riel
-     no empuje el composer a kilómetros de distancia. */
-  .rail-panel { max-height: 62vh; }
+@media (max-width: 767px) {
   .brand-lockup { display: none; }
   .brand-mark { display: block; }
   .top-link span { display: none; }
+  .rail-open-btn { display: inline-flex; }
+  .canvas-empty h2 { font-size: 20px; }
+}
+@media (min-width: 768px) {
+  .rail-backdrop { display: none !important; }
 }

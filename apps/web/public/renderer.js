@@ -7,9 +7,11 @@
     new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
 
   const CATEGORY_ICONS = {
-    ingresos: '💵', supermercado: '🛒', restaurantes: '🍽️', entretenimiento: '🎬',
-    servicios: '💡', transporte: '🚗', compras: '🛍️', salud: '⚕️', hogar: '🏠',
-    vivienda: '🏢', ahorro: '🐷', transferencias: '↔️', 'pagos tdc': '💳',
+    ingresos: 'catIncome', supermercado: 'catCart', restaurantes: 'catFood',
+    entretenimiento: 'catPlay', servicios: 'catBolt', transporte: 'catCar',
+    compras: 'catBag', salud: 'catHealth', hogar: 'catHome',
+    vivienda: 'catBuilding', ahorro: 'catSavings', transferencias: 'catTransfer',
+    'pagos tdc': 'catCard',
   };
 
   // La paleta, los ejes y el dibujo de toda gráfica viven en js/charts.js,
@@ -121,8 +123,10 @@
     if (c.title) card.appendChild(el('h3', null, c.title));
     for (const t of c.items ?? []) {
       const row = el('div', 'tx');
-      const icon = CATEGORY_ICONS[(t.category ?? '').toLowerCase()] ?? '💰';
-      row.appendChild(el('div', 't-icon', icon));
+      const iconName = CATEGORY_ICONS[(t.category ?? '').toLowerCase()] ?? 'catMoney';
+      const iconEl = el('div', 't-icon');
+      iconEl.appendChild(window.ICONS.el(iconName));
+      row.appendChild(iconEl);
       const main = el('div', 't-main');
       main.appendChild(el('div', 't-desc', t.description ?? ''));
       main.appendChild(el('div', 't-meta', [t.date, t.category].filter(Boolean).join(' · ')));
@@ -191,9 +195,11 @@
 
   renderers.alert = function (c) {
     const level = ['info', 'success', 'warning', 'error'].includes(c.level) ? c.level : 'info';
-    const icons = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '⛔' };
+    const iconMap = { info: 'alertInfo', success: 'alertSuccess', warning: 'alertWarning', error: 'alertError' };
     const wrap = el('div', `c-alert ${level} gen`);
-    wrap.appendChild(el('span', 'al-icon', icons[level]));
+    const alertIcon = el('span', 'al-icon');
+    alertIcon.appendChild(window.ICONS.el(iconMap[level]));
+    wrap.appendChild(alertIcon);
     const body = el('div');
     if (c.title) body.appendChild(el('b', null, c.title));
     body.appendChild(el('span', null, c.text ?? ''));

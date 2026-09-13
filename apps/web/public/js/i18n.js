@@ -83,8 +83,8 @@
     'folder.ofTotal': 'Coincidencias · {total} en total',
 
     'canvas.title': '¿Qué quieres ver hoy?',
-    'canvas.text': 'El agente consulta tus datos bancarios con herramientas MCP, construye la interfaz al instante y la archiva en la carpeta que mejor le corresponde.',
-    'canvas.hint': 'Empieza con una visualización sugerida de arriba, o escribe tu pregunta abajo.',
+    'canvas.text': 'Habla con el agente y él construirá la pantalla perfecta para lo que necesitas ver.',
+    'canvas.hint': 'Elige una sugerencia de arriba o escribe tu pregunta',
     'canvas.expand': 'Ver en grande',
 
     'agent.thinking': 'Pensando…',

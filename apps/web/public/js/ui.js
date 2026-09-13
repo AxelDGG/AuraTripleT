@@ -59,9 +59,17 @@
     overlayState.open = true;
     overlay.hidden = false;
     overlay.classList.remove('is-closing');
+
     $('overlayTitle').textContent = title ?? '';
-    $('overlayFolder').textContent = folderLabel ?? '';
-    $('overlayMeta').textContent = meta ?? '';
+
+    const folderEl = $('overlayFolder');
+    folderEl.textContent = folderLabel ?? '';
+    folderEl.hidden = !folderLabel;
+
+    const metaEl = $('overlayMeta');
+    metaEl.textContent = meta ?? '';
+    metaEl.hidden = !meta;
+
     window.renderGeneratedUi($('overlayBody'), spec?.ui ?? []);
     $('overlayClose').focus();
   }

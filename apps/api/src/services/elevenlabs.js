@@ -34,6 +34,21 @@ export async function transcribe(audioBuffer, mimeType) {
   return data.text ?? '';
 }
 
+export async function getConvAISignedUrl() {
+  const agentId = process.env.ELEVENLABS_AGENT_ID;
+  if (!agentId) throw new Error('ELEVENLABS_AGENT_ID no configurada');
+  const res = await fetch(
+    `${BASE}/convai/conversation/get_signed_url?agent_id=${encodeURIComponent(agentId)}`,
+    { headers: { 'xi-api-key': key() } },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`ElevenLabs ConvAI ${res.status}: ${detail}`);
+  }
+  const data = await res.json();
+  return data.signed_url ?? '';
+}
+
 export async function speak(text) {
   const res = await fetch(`${BASE}/text-to-speech/${voiceId()}/stream`, {
     method: 'POST',

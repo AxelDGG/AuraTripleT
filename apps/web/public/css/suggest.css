@@ -2,6 +2,52 @@
 
 .suggest { display: flex; flex-direction: column; gap: 8px; }
 
+.suggest-viewport {
+  overflow: hidden;
+  max-height: 200px;
+  opacity: 1;
+  transition: max-height 360ms var(--ease-out), opacity 280ms var(--ease-out);
+}
+
+/* Auto-colapsa cuando hay contenido, a menos que el usuario lo haya expandido */
+.workspace.has-content:not(.suggest-visible) .suggest-viewport {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Handle interno de colapso — vive dentro de .suggest, debajo del viewport */
+.suggest-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 18px;
+  margin: 2px auto 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast), opacity var(--dur-fast);
+  opacity: 0;
+  pointer-events: none;
+}
+.suggest-toggle svg {
+  width: 13px; height: 13px;
+  fill: none; stroke: currentColor; stroke-width: 2.2;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform var(--dur) var(--ease-spring);
+}
+/* Solo se muestra cuando hay contenido activo */
+.workspace.has-content .suggest-toggle {
+  opacity: 1;
+  pointer-events: auto;
+}
+.suggest-toggle:hover { background: var(--red-tint); color: var(--red-600); }
+/* Flecha apunta hacia arriba cuando el viewport está colapsado (para expandir) */
+.workspace.has-content:not(.suggest-visible) .suggest-toggle svg { transform: rotate(180deg); }
+
 .suggest-head { display: flex; align-items: center; gap: 12px; }
 
 .suggest-title {
@@ -49,15 +95,15 @@
 
 /* ---------- Tarjeta de sugerencia ---------- */
 .sg-card {
-  width: 216px;
+  width: 252px;
   flex: none;
   scroll-snap-align: start;
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  padding: 11px 12px;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -71,35 +117,28 @@
   animation: rise var(--dur-slow) var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 45ms);
 }
-/* Filete rojo que crece desde la izquierda al apuntar la tarjeta. */
-.sg-card::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--red);
-  transform: scaleY(0);
-  transform-origin: center;
-  transition: transform var(--dur) var(--ease-spring);
-}
 .sg-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--red-tint-2); }
-.sg-card:hover::before { transform: scaleY(1); }
 .sg-card:active { transform: translateY(-1px); }
 
+/* Panel izquierdo: preview de la gráfica a tamaño real */
 .sg-icon {
-  width: 34px; height: 34px;
-  flex: none;
   display: grid;
   place-items: center;
-  border-radius: 10px;
   background: var(--red-tint);
   color: var(--red-600);
+  border-right: 1px solid var(--line);
+  padding: 14px 10px;
   transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
 }
-.sg-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
-.sg-card:hover .sg-icon { background: var(--red); color: #fff; }
+.sg-icon svg {
+  width: 52px; height: 52px;
+  overflow: visible;
+  transition: transform var(--dur) var(--ease-spring);
+}
+.sg-card:hover .sg-icon { background: color-mix(in srgb, var(--red-tint) 60%, var(--red-tint-2)); color: var(--red); }
+.sg-card:hover .sg-icon svg { transform: scale(1.07); }
 
-.sg-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sg-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 12px 13px; justify-content: center; }
 .sg-title {
   font-size: 12.5px;
   font-weight: 700;
@@ -118,10 +157,10 @@
   text-overflow: ellipsis;
 }
 
-/* Carpeta destino: se revela al apuntar, para no competir con el título. */
+/* Carpeta destino: chip sobre la zona de texto, se revela al apuntar. */
 .sg-tag {
   position: absolute;
-  top: 8px; right: 9px;
+  top: 8px; right: 8px;
   padding: 2px 7px;
   border-radius: var(--r-pill);
   background: var(--surface-3);

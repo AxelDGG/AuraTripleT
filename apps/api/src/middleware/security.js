@@ -14,9 +14,13 @@ export function corsForClients(req, res, next) {
 }
 
 const CONTENT_SECURITY_POLICY =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-  "font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; " +
-  "media-src 'self' blob:; " +
+  "default-src 'self'; " +
+  "script-src 'self' https://elevenlabs.io https://cdn.elevenlabs.io; " +
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+  "font-src 'self' https://fonts.gstatic.com; " +
+  "img-src 'self' data: https://*.elevenlabs.io; " +
+  "connect-src 'self' https://api.elevenlabs.io wss://api.elevenlabs.io; " +
+  "media-src 'self' blob: https://api.elevenlabs.io; " +
   "object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
 
 export function securityHeaders(_req, res, next) {

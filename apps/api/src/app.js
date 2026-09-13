@@ -20,6 +20,7 @@ import { createHistoryStore } from './history-store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const WEB_PUBLIC_DIR = path.join(__dirname, '..', '..', 'web', 'public');
+const ASSETS_DIR = path.join(__dirname, '..', '..', 'assets');
 
 const JSON_BODY_LIMIT = '1mb';
 // El agente (LLM) es el recurso caro: 20/min. El resto de la API: 120/min.
@@ -33,6 +34,7 @@ export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR, histor
   app.use(securityHeaders);
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
   app.use(express.static(staticDir));
+  app.use('/assets', express.static(ASSETS_DIR));
 
   app.use('/api/chat', createRateLimiter(CHAT_REQUESTS_PER_MINUTE));
   app.use('/api', createRateLimiter(API_REQUESTS_PER_MINUTE));

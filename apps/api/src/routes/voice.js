@@ -52,3 +52,11 @@ voiceRouter.post('/api/voice/speak', async (req, res) => {
     }
   }
 });
+
+// GET /api/voice/convai-token
+// Devuelve el agent ID de ElevenLabs ConvAI para que el widget lo use en el cliente.
+voiceRouter.get('/api/voice/convai-token', (req, res) => {
+  const agentId = process.env.ELEVENLABS_AGENT_ID;
+  if (!agentId) return res.status(503).json({ error: 'Configura ELEVENLABS_AGENT_ID en el .env del servidor' });
+  res.json({ agentId });
+});
