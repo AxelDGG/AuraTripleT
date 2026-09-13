@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { CHART_TYPE_IDS } from './catalog.js';
+import { normalizeTableProps } from './core/tables.js';
 
 // Tipos de gráfica: los del catálogo, sin copiarlos. Una lista escrita a mano
 // aquí se desincronizaba del catálogo que lee el modelo.
@@ -29,6 +30,7 @@ export const ACCOUNT_KINDS = ['checking', 'savings', 'credit'];
 export const TRENDS = ['up', 'down', 'neutral'];
 export const INPUT_TYPES = ['text', 'number', 'select'];
 
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = z.union([z.string(), z.number(), z.boolean()]).transform(String);
 const optionalText = text.optional().catch(undefined);
 const requiredText = text.catch('');
@@ -140,14 +142,21 @@ export const ChartSchema = z.preprocess(
     .passthrough(),
 );
 
-export const TableSchema = z
-  .object({
-    type: z.literal('table'),
-    title: optionalText,
-    columns: textList,
-    rows: z.array(textList).catch([]),
-  })
-  .passthrough();
+// Las filas de una Table se pintan como arreglos, pero el modelo manda objetos
+// casi siempre (son los que salen de las herramientas). `normalizeTableProps`
+// los acomoda contra las columnas antes de validar; sin eso la fila entera se
+// descartaba y la tabla salía con encabezado y renglones vacíos.
+export const TableSchema = z.preprocess(
+  (component) => (isObject(component) ? { ...component, ...normalizeTableProps(component) } : component),
+  z
+    .object({
+      type: z.literal('table'),
+      title: optionalText,
+      columns: textList,
+      rows: z.array(textList).catch([]),
+    })
+    .passthrough(),
+);
 
 const TransactionSchema = z
   .object({ date: optionalText, description: requiredText, category: optionalText, amount: number })

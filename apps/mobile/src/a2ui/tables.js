@@ -11,6 +11,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Card, Text } from '../components/ui';
 import { color, radius, space } from '../theme/tokens';
 import { formatCurrency, formatDate, formatNumber, formatPercent } from './core/format';
+import { resolveTableColumns } from './core/tables';
 
 const asText = (v) => (v === undefined || v === null ? '' : String(v));
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -59,9 +60,10 @@ export function DataTable({ props }) {
   const [sort, setSort] = useState(null);
   const [page, setPage] = useState(0);
 
-  const columns = list(props.columns).map((c, i) => (isObject(c)
-    ? { key: asText(c.key ?? c.field ?? i), label: asText(c.label ?? c.key ?? c.field ?? ''), format: c.format, align: c.align }
-    : { key: asText(c), label: asText(c), format: undefined, align: undefined }));
+  // La `key` de cada columna se resuelve contra las filas: el modelo a veces
+  // manda los encabezados en español ("Fecha") y los datos con la llave del
+  // banco ("date"), y así las celdas no salen vacías.
+  const columns = resolveTableColumns(props.columns, props.rows);
   // Una fila puede venir como objeto (lo normal) o como arreglo del orden de
   // las columnas, que es lo que el modelo escribe cuando confunde Table.
   const rows = list(props.rows).map((row) => (isObject(row)
