@@ -113,6 +113,15 @@ test('table y transaction_list toleran filas y montos mal tipados', () => {
   assert.equal(txs.items[0].amount, -120.5);
 });
 
+test('table acomoda filas-objeto contra sus columnas (y deduce las que falten)', () => {
+  const rows = [{ id: 'TX-1041', accountId: 'ACC-001', date: '2026-09-01', description: 'Netflix México', category: 'Entretenimiento', amount: -299 }];
+  const conColumnas = normalizeComponent({ type: 'table', title: 'Movimientos', columns: ['Fecha', 'Concepto', 'Monto'], rows });
+  assert.deepEqual(conColumnas.rows, [['2026-09-01', 'Netflix México', '-299']]);
+  const sinColumnas = normalizeComponent({ type: 'table', rows });
+  assert.deepEqual(sinColumnas.columns, ['Fecha', 'Concepto', 'Categoría', 'Monto']);
+  assert.deepEqual(sinColumnas.rows, [['2026-09-01', 'Netflix México', 'Entretenimiento', '-299']]);
+});
+
 test('los campos desconocidos se conservan (contrato tolerante al modelo)', () => {
   const header = normalizeComponent({ type: 'header', title: 'Hola', accent: 'rose' });
   assert.equal(header.accent, 'rose');

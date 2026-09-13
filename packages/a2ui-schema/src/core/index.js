@@ -10,6 +10,7 @@
 
 export * from './pointer.js';
 export * from './format.js';
+export * from './tables.js';
 export * from './functions.js';
 export * from './binding.js';
 export * from './catalog-v2.js';

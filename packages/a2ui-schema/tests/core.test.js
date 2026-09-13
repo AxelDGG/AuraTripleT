@@ -22,6 +22,8 @@ import {
   pointersOverlap,
   resolveDynamic,
   resolveProps,
+  resolveTableColumns,
+  tableRow,
   setAt,
   surfaceFromV1,
   toV1Components,
@@ -29,6 +31,46 @@ import {
   unwrapMessage,
   wrapMessage,
 } from '../src/index.js';
+
+// ---------- tablas ----------
+
+test('las columnas de una tabla se resuelven contra filas-objeto (encabezado en español, llave en inglés)', () => {
+  const rows = [{ id: 'TX-1', accountId: 'ACC-001', date: '2026-09-01', description: 'Netflix', category: 'Entretenimiento', amount: -299 }];
+  const columns = resolveTableColumns(['Fecha', 'Concepto', 'Monto'], rows);
+  assert.deepEqual(columns.map((c) => c.key), ['date', 'description', 'amount']);
+  assert.deepEqual(columns.map((c) => c.label), ['Fecha', 'Concepto', 'Monto']);
+  assert.deepEqual(columns.map((c) => c.format), ['date', undefined, 'currency']);
+  assert.deepEqual(tableRow(rows[0], columns), ['2026-09-01', 'Netflix', -299]);
+});
+
+test('una columna que declara su key gana, y la que no resuelve queda vacía en vez de inventar', () => {
+  const rows = [{ name: 'Banorte Oro', paymentDue: '2026-09-15', minimumPayment: 1870, status: 'Pendiente' }];
+  const columns = resolveTableColumns(
+    [{ key: 'name', label: 'Tarjeta' }, { key: 'paymentDue', label: 'Fecha límite', format: 'date' }, { key: 'minimumPayment', label: 'Pago mínimo' }, 'Sucursal'],
+    rows,
+  );
+  assert.deepEqual(columns.map((c) => c.key), ['name', 'paymentDue', 'minimumPayment', 'Sucursal']);
+  assert.deepEqual(tableRow(rows[0], columns), ['Banorte Oro', '2026-09-15', 1870, '']);
+});
+
+test('sin columnas, las dicta la fila: llaves técnicas fuera y etiquetas en español', () => {
+  const columns = resolveTableColumns(undefined, [{ id: 'TX-1', accountId: 'ACC-001', date: '2026-09-01', description: 'Netflix', amount: -299 }]);
+  assert.deepEqual(columns.map((c) => c.key), ['date', 'description', 'amount']);
+  assert.deepEqual(columns.map((c) => c.label), ['Fecha', 'Concepto', 'Monto']);
+});
+
+test('las filas-arreglo se respetan tal cual y las columnas conservan su etiqueta', () => {
+  const columns = resolveTableColumns(['A', 'B'], [['1', '2']]);
+  assert.deepEqual(columns.map((c) => c.key), ['A', 'B']);
+  assert.deepEqual(tableRow(['1', '2'], columns), ['1', '2']);
+});
+
+test('encabezados desconocidos caen a la posición solo si hay tantas llaves como columnas', () => {
+  const cerca = resolveTableColumns(['Uno', 'Dos'], [{ alfa: 1, beta: 2 }]);
+  assert.deepEqual(cerca.map((c) => c.key), ['alfa', 'beta']);
+  const lejos = resolveTableColumns(['Uno', 'Dos'], [{ alfa: 1, beta: 2, gamma: 3 }]);
+  assert.deepEqual(lejos.map((c) => c.key), ['Uno', 'Dos'], 'sin correspondencia clara no se adivina');
+});
 
 // ---------- pointer ----------
 

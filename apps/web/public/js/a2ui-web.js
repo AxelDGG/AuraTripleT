@@ -25,6 +25,8 @@ import {
   formatDate,
   joinPointer,
   pointersOverlap,
+  resolveTableColumns,
+  tableRow,
 } from '/a2ui/index.js';
 
 const CATEGORY_ICONS = {
@@ -384,15 +386,20 @@ const COMPONENTS = {
   Table(props) {
     const card = el('div', 'card c-table gen');
     if (props.title) card.append(el('h3', null, props.title));
+    // Las filas pueden llegar como arreglos (lo que Table espera) o como objetos
+    // —lo normal cuando `rows` es un binding al dataModel—, así que las columnas
+    // se resuelven contra ellas y cada celda cae en su lugar en vez de pintarse
+    // como un solo "[object Object]".
+    const columns = resolveTableColumns(props.columns, props.rows);
     const table = el('table');
     const thead = el('thead');
     const headRow = el('tr');
-    for (const col of Array.isArray(props.columns) ? props.columns : []) headRow.append(el('th', null, asText(col)));
+    for (const col of columns) headRow.append(el('th', null, col.label));
     thead.append(headRow);
     const tbody = el('tbody');
     for (const row of Array.isArray(props.rows) ? props.rows : []) {
       const tr = el('tr');
-      for (const cell of Array.isArray(row) ? row : [row]) tr.append(el('td', null, moneyOrText(cell)));
+      for (const cell of tableRow(row, columns)) tr.append(el('td', null, moneyOrText(cell)));
       tbody.append(tr);
     }
     table.append(thead, tbody);
@@ -419,8 +426,10 @@ const COMPONENTS = {
     if (props.title) card.append(el('h3', null, props.title));
     if (props.subtitle) card.append(el('p', 'ch-sub', props.subtitle));
 
-    const columns = (Array.isArray(props.columns) ? props.columns : []).map((c, i) =>
-      (isObject(c) ? { key: asText(c.key ?? c.field ?? i), label: asText(c.label ?? c.key ?? c.field ?? ''), format: c.format, align: c.align } : { key: asText(c), label: asText(c), format: undefined, align: undefined }));
+    // La `key` de cada columna se resuelve contra las filas: el modelo a veces
+    // manda los encabezados en español ("Fecha") y los datos con la llave del
+    // banco ("date"), y así las celdas no salen vacías.
+    const columns = resolveTableColumns(props.columns, props.rows);
     const rows = (Array.isArray(props.rows) ? props.rows : []).map((r) =>
       (isObject(r) ? r : Object.fromEntries(columns.map((c, i) => [c.key, Array.isArray(r) ? r[i] : r]))));
     if (!columns.length || !rows.length) {

@@ -10,6 +10,7 @@ import { Card, Chip, Text } from '../components/ui';
 import Icon from '../components/Icon';
 import { color, radius, space } from '../theme/tokens';
 import { fmtDate, fmtMoney } from '../lib/format';
+import { resolveTableColumns, tableRow } from '../a2ui/core/tables';
 
 const CATEGORY_ICONS = {
   ingresos: '💵', supermercado: '🛒', restaurantes: '🍽️', entretenimiento: '🎬',
@@ -108,8 +109,11 @@ export function BalanceCards({ component }) {
 // aplastar el texto: en un teléfono es preferible arrastrar a no poder leer.
 
 export function Table({ component }) {
-  const columns = Array.isArray(component.columns) ? component.columns : [];
   const rows = Array.isArray(component.rows) ? component.rows : [];
+  // Las filas llegan como arreglos o como objetos (cuando `rows` es un binding
+  // al dataModel): las columnas se resuelven contra ellas para que cada celda
+  // caiga en su columna en vez de pintarse como un solo "[object Object]".
+  const columns = resolveTableColumns(component.columns, rows);
   if (!columns.length && !rows.length) return null;
 
   const scrolls = columns.length > 3;
@@ -118,17 +122,17 @@ export function Table({ component }) {
   const body = (
     <View style={{ minWidth }}>
       <View style={styles.tableHeadRow}>
-        {columns.map((label, index) => (
+        {columns.map((col, index) => (
           <Text key={index} variant="tiny" numberOfLines={2} style={[styles.tableCell, styles.tableHeadCell]}>
-            {String(label).toUpperCase()}
+            {col.label.toUpperCase()}
           </Text>
         ))}
       </View>
       {rows.map((row, rowIndex) => (
         <View key={rowIndex} style={[styles.tableRow, rowIndex % 2 === 1 && styles.tableRowAlt]}>
-          {(Array.isArray(row) ? row : [row]).map((cell, cellIndex) => (
+          {tableRow(row, columns).map((cell, cellIndex) => (
             <Text key={cellIndex} variant="small" numberOfLines={2} style={[styles.tableCell, { color: color.ink2 }]}>
-              {cell === null || cell === undefined ? '—' : String(cell)}
+              {cell === null || cell === undefined || cell === '' ? '—' : String(cell)}
             </Text>
           ))}
         </View>
