@@ -119,6 +119,20 @@ export const COMPONENT_CATALOG_V2 = [
     hint: 'movimientos; items puede ser un binding a una lista del dataModel.',
   },
   {
+    name: 'DataTable',
+    kind: 'domain',
+    container: false,
+    example: '{"component":"DataTable","title":"Pagos programados","columns":[{"key":"date","label":"Fecha","format":"date"},{"key":"amount","label":"Monto","format":"currency","align":"right"},{"key":"status","label":"Estado","format":"badge"}],"rows":{"path":"/pagos"},"pageSize":8}',
+    hint: 'tabla con filas como objetos (no arreglos), columnas ordenables y formato por columna. Úsala en vez de Table cuando haya varias filas comparables o estados.',
+  },
+  {
+    name: 'Calendar',
+    kind: 'domain',
+    container: false,
+    example: '{"component":"Calendar","title":"Septiembre","month":"2026-09","events":{"path":"/agenda"},"selected":{"path":"/schedule/date"}}',
+    hint: 'calendario mensual con marcas por día. events: [{date:"2026-09-15",label,kind payment|personal|due}]. Si le pones "value":{"path"} los días se vuelven seleccionables y escriben la fecha ahí.',
+  },
+  {
     name: 'Alert',
     kind: 'domain',
     container: false,
@@ -176,6 +190,13 @@ export const COMPONENT_CATALOG_V2 = [
     example: '{"component":"Toggle","label":"Incluir seguro","value":{"path":"/plan/insurance"}}',
     hint: 'interruptor booleano ligado a una ruta.',
   },
+  {
+    name: 'DatePicker',
+    kind: 'input',
+    container: false,
+    example: '{"component":"DatePicker","label":"Fecha del recordatorio","value":{"path":"/schedule/date"},"min":"2026-09-12","hint":"..."}',
+    hint: 'selector de fecha: botón con la fecha elegida que abre un calendario. value DEBE ser {"path"} y se escribe como "YYYY-MM-DD". min/max acotan el rango.',
+  },
 
   // ---------- action ----------
   {
@@ -210,6 +231,9 @@ const ALIASES = {
   dropdown: 'Select', choicepicker: 'Select', picker: 'Select',
   range: 'Slider', switch: 'Toggle', checkbox: 'Toggle', chips: 'ChoiceChips', segmented: 'ChoiceChips',
   paragraph: 'Text', markdown: 'Text', label: 'Text',
+  datatable: 'DataTable', data_grid: 'DataTable', grid_table: 'DataTable',
+  calendar_view: 'Calendar', month_calendar: 'Calendar', agenda: 'Calendar',
+  datefield: 'DatePicker', dateinput: 'DatePicker', date: 'DatePicker', daypicker: 'DatePicker',
   heading: 'Header', title: 'Header',
   notice: 'Alert', banner: 'Alert',
   progressbar: 'Progress',
@@ -271,6 +295,8 @@ const SIGNATURES = {
   Chart: 'Chart{chartType,title,subtitle,caption,labels,datasets:[{label,data,kind,axis,color}],format,unit,target,targetLabel,value,max,label}',
   Table: 'Table{title,columns,rows}',
   TransactionList: 'TransactionList{title,items:[{date,description,category,amount}]}',
+  DataTable: 'DataTable{title,columns:[{key,label,format text|currency|date|number|percent|badge,align}],rows (objetos con esas key),pageSize,emptyText} (ordenable al hacer clic en el encabezado)',
+  Calendar: 'Calendar{title,month "YYYY-MM",events:[{date,label,kind payment|personal|due}],selected,value} (con value:{path} los días se seleccionan)',
   Alert: 'Alert{level info|success|warning|error,title,text}',
   Progress: 'Progress{label,value 0-100,caption}',
   Text: 'Text{markdown}',
@@ -279,6 +305,7 @@ const SIGNATURES = {
   ChoiceChips: 'ChoiceChips{label,value,options:[{value,label}]} (2-5 opciones)',
   TextField: 'TextField{label,value,inputType text|number,placeholder}',
   Toggle: 'Toggle{label,value}',
+  DatePicker: 'DatePicker{label,value,min,max,hint} (value se escribe como "YYYY-MM-DD")',
   Button: 'Button{label,variant primary|secondary|ghost,confirm,action:{event:{name,context}}}',
   Form: 'Form{title,description,action,submitLabel,fields:[{name,label,inputType text|number|select,options,placeholder,value}]} (al enviarse llega el evento "action" con los campos)',
 };

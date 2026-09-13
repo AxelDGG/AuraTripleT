@@ -2,7 +2,7 @@
 // El token (con refresh_token) se genera una vez con `npm run google:auth`
 // y se persiste en disco; aquí solo se carga y se mantiene actualizado.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { google } from 'googleapis';
@@ -39,6 +39,16 @@ export function createOAuthClient() {
 export function readToken() {
   if (!existsSync(TOKEN_PATH)) return null;
   return JSON.parse(readFileSync(TOKEN_PATH, 'utf8'));
+}
+
+// Guarda una copia del token vigente antes de reemplazarlo (cambiar de cuenta
+// para una demo no debería costar volver a autorizar la de siempre).
+// Devuelve la ruta de la copia, o null si no había token que conservar.
+export function backupToken() {
+  if (!existsSync(TOKEN_PATH)) return null;
+  const target = `${TOKEN_PATH}.backup`;
+  copyFileSync(TOKEN_PATH, target);
+  return target;
 }
 
 export function saveToken(tokens) {
