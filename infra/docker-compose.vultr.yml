@@ -32,6 +32,16 @@ services:
       - api
     env_file:
       - ../.env
+    environment:
+      # sslip.io resuelve <ip-con-guiones>.sslip.io a esa IP sin registrar nada,
+      # así que el dominio se puede deducir del servidor y no hace falta editar
+      # el .env para tener HTTPS. Si algún día hay dominio propio, se define
+      # NORTE_DOMAIN en el .env y este valor deja de usarse.
+      #
+      # Sin esto, Caddy arrancaba con `{$NORTE_DOMAIN}` vacío: la directiva de
+      # sitio queda sin nombre, Caddy no levanta y el despliegue se quedaba en
+      # HTTP sin que nada lo dijera.
+      NORTE_DOMAIN: ${NORTE_DOMAIN:-140-82-25-228.sslip.io}
     ports:
       - '80:80'
       - '443:443'
