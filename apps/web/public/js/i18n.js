@@ -23,6 +23,10 @@
     'suggest.prev': 'Ver anteriores',
     'suggest.next': 'Ver siguientes',
 
+    'suggest.reestructura.title': 'Pagar menos intereses',
+    'suggest.reestructura.hint': 'Reestructura tu tarjeta a meses fijos',
+    'suggest.reestructura.prompt': 'Quiero pagar menos intereses de mi tarjeta: muéstrame cómo quedaría mi saldo a meses fijos y déjame elegir el plazo.',
+
     'suggest.gastos.title': 'Gráfica de gastos',
     'suggest.gastos.hint': 'Por categoría, este mes',
     'suggest.gastos.prompt': 'Hazme una gráfica de mis gastos por categoría de este mes, con las categorías principales y cuánto subió o bajó cada una.',
@@ -94,6 +98,8 @@
     'agent.noResponse': 'El agente no devolvió una respuesta.',
     'agent.saved': 'Guardado en {folder}',
     'agent.formSent': 'Formulario enviado: {payload}',
+    'agent.action': 'Acción: {name}',
+    'agent.building': 'Construyendo tu pantalla…',
 
     'overlay.close': 'Cerrar',
     'error.history': 'No se pudo cargar el historial.',
@@ -110,6 +116,70 @@
     'voice.network': 'El reconocimiento de voz necesita conexión a internet.',
     'voice.error': 'No se pudo usar el micrófono.',
     'voice.listening': 'Escuchando… habla ahora',
+
+    // ===== Acceso =====
+    'auth.pitch.title': 'Tu banco,\nsiempre contigo',
+    'auth.pitch.copy': 'Accede de forma segura a tus cuentas, realiza tus operaciones y mantén el control de tus finanzas.',
+    'auth.title': 'Inicia sesión',
+    'auth.subtitle': 'Ingresa tus datos para continuar',
+    'auth.user': 'Usuario',
+    'auth.user.placeholder': 'Ingresa tu usuario',
+    'auth.password': 'Contraseña',
+    'auth.password.placeholder': 'Ingresa tu contraseña',
+    'auth.reveal': 'Mostrar u ocultar la contraseña',
+    'auth.submit': 'Iniciar sesión',
+    'auth.forgot': '¿Olvidaste tu contraseña?',
+    'auth.forgot.toast': 'Recuperación de contraseña: llama al 800 BANORTE o acude a tu sucursal.',
+    'auth.register': 'Regístrate',
+    'auth.register.toast': 'El alta de nuevos clientes se hace en sucursal o en la app Banorte.',
+    'auth.demo': 'Demo · regina · carlos · maria — contraseña Banorte2026',
+    'auth.error.empty': 'Escribe tu usuario y tu contraseña.',
+    'auth.error.network': 'No pudimos conectar con Banorte. Revisa tu conexión.',
+
+    // ===== Portada de banca en línea =====
+    'portal.greet.hello': '¡Hola, {name}!',
+    'portal.greet.plain': '¡Hola!',
+    'portal.greet.sub': 'Aquí tienes un resumen de tu cuenta y tus movimientos recientes.',
+    'portal.balance.caption': 'Saldo disponible',
+    'portal.balance.cta': 'Ver movimientos',
+    'portal.promo.title': 'Tu dinero, siempre contigo',
+    'portal.promo.copy': 'Descarga la app Banorte y ten el control de tus finanzas desde donde estés.',
+    'portal.promo.cta': 'Conoce más',
+    'portal.promo.toast': 'La app Banorte está en App Store y Google Play con tu misma cuenta.',
+
+    'portal.quick.assistant': 'Asistente IA',
+    'portal.quick.assistant.tag': 'NUEVO',
+    'portal.quick.transfer': 'Transferir',
+    'portal.quick.services': 'Pagar servicios',
+    'portal.quick.card': 'Pagar tarjeta',
+    'portal.quick.topup': 'Recargar celular',
+    'portal.quick.withdraw': 'Retirar sin tarjeta',
+    'portal.quick.more': 'Más',
+
+    'portal.movements.title': 'Movimientos recientes',
+    'portal.movements.all': 'Ver todos',
+    'portal.movements.date': 'Fecha',
+    'portal.movements.description': 'Descripción',
+    'portal.movements.reference': 'Referencia',
+    'portal.movements.amount': 'Movimiento',
+    'portal.movements.balance': 'Saldo',
+
+    'portal.alerts.title': 'Alertas',
+    'portal.alerts.all': 'Ver todas',
+    'portal.alerts.empty': 'No tienes alertas por ahora.',
+    'portal.security.title': 'Tu seguridad es primero',
+    'portal.security.copy': 'Activa la autenticación en dos pasos y mantén tu cuenta más protegida.',
+    'portal.security.cta': 'Configurar ahora',
+    'portal.security.toast': 'En la app Banorte puedes activar el acceso con huella o Face ID.',
+    'portal.favorites.title': 'Tus favoritos',
+    'portal.favorites.all': 'Ver todos',
+    'portal.favorites.add': 'Agregar',
+    'portal.favorites.toast': 'Transferencia a {name}: pídesela al asistente y la prepara por ti.',
+
+    'portal.all': 'Ese detalle',
+    'portal.soon': '{action} llega en la siguiente entrega. Por ahora, pídeselo al asistente.',
+    'portal.error': 'No se pudo cargar tu portada.',
+    'portal.assistant.back': 'BANCA EN LÍNEA',
   };
 
   // t('agent.tool', { tool: 'get_accounts' }) → 'Consultando get_accounts…'
@@ -159,5 +229,22 @@
     return date.toLocaleString(LOCALE, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
-  window.I18N = { t, apply, fmtMoney, fmtWhen, fmtTime, fmtDateTime, locale: () => LOCALE, get lang() { return LANG; } };
+  // Fecha larga de la portada: "Jueves, 24 de abril de 2026".
+  function fmtLongDate(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const text = date.toLocaleDateString(LOCALE, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  // Fecha de un renglón de movimientos: "24 abr 2026". Las fechas del banco
+  // vienen como 'YYYY-MM-DD' y se leen a mediodía UTC para que la zona horaria
+  // no las corra un día hacia atrás.
+  function fmtShortDate(value) {
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00Z`) : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  window.I18N = { t, apply, fmtMoney, fmtWhen, fmtTime, fmtDateTime, fmtLongDate, fmtShortDate, locale: () => LOCALE, get lang() { return LANG; } };
 })();

@@ -1,12 +1,17 @@
 // Selección del proveedor LLM que orquesta al agente.
 // Contrato de un proveedor: { name, model, chat({ messages, tools, onRateLimit }) → mensaje del
 // asistente en formato OpenAI (content o tool_calls) }.
-// Groq es el orquestador por defecto; Gemini se agrega aquí como fallback (LLM_PROVIDER=gemini).
+//
+// Groq (gpt-oss-120b) es el más rápido; Gemini (gemini-3.6-flash) tiene un tier
+// gratis medido en requests por día y no en tokens por minuto, así que aguanta
+// una demo con varios turnos seguidos. Se elige con LLM_PROVIDER.
 
 import { createGroqProvider } from './groq.js';
+import { createGeminiProvider } from './gemini.js';
 
 const FACTORIES = {
   groq: createGroqProvider,
+  gemini: createGeminiProvider,
 };
 
 export const DEFAULT_PROVIDER = 'groq';

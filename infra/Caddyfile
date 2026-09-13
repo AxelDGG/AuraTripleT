@@ -1,0 +1,34 @@
+# Caddy delante de @norte/api en Vultr.
+#
+# Caddy pide y renueva el certificado solo, así que la app móvil habla HTTPS sin
+# que nadie toque un certificado a mano. `NORTE_DOMAIN` sale del .env del
+# servidor.
+#
+# Sin dominio propio: usa sslip.io, que resuelve cualquier IP con un nombre
+# válido y por lo tanto permite emitir certificado de Let's Encrypt. Para la IP
+# 149.28.10.5 el dominio es 149-28-10-5.sslip.io — cero registros DNS, cero
+# costo, y la app deja de necesitar tráfico en claro.
+
+{$NORTE_DOMAIN} {
+	encode zstd gzip
+
+	# El chat es SSE: si Caddy almacenara la respuesta, la interfaz generada
+	# llegaría toda de golpe al final y se perdería el streaming.
+	@sse path /api/chat
+	reverse_proxy @sse api:3040 {
+		flush_interval -1
+	}
+
+	# La voz también se transmite conforme se genera.
+	@voice path /api/voice/*
+	reverse_proxy @voice api:3040 {
+		flush_interval -1
+	}
+
+	reverse_proxy api:3040
+
+	log {
+		output stdout
+		format console
+	}
+}

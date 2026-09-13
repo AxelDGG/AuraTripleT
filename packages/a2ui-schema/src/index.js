@@ -1,4 +1,4 @@
-// @norte/a2ui-schema — Norte UI Spec v1, nuestro equivalente de A2UI.
+// @norte/a2ui-schema — Norte UI Spec v1 (legado) y Norte A2UI v2 (protocolo).
 // Contrato compartido entre el agente (lo emite), la API (lo normaliza) y los
 // clientes web/mobile (lo renderizan con componentes propios).
 
@@ -11,6 +11,7 @@ export {
   COMPONENT_TYPES,
   SPEC_VERSION,
   chartsPromptSection,
+  chartsPromptSectionCompact,
   componentsPromptSection,
 } from './catalog.js';
 export {
@@ -29,6 +30,27 @@ export {
   TRENDS,
   componentSchemas,
 } from './schemas.js';
+
+// ---------- Norte A2UI v2 ----------
+// Núcleo sin dependencias (runtime, bindings, catálogo, aplanado, compat) y los
+// mensajes del protocolo validados con zod. Ver docs/A2UI.md.
+export * from './core/index.js';
+export {
+  ClientCapabilitiesSchema,
+  ComponentSchema,
+  CreateSurfaceSchema,
+  DeleteSurfaceSchema,
+  MESSAGE_KINDS,
+  UpdateComponentsSchema,
+  UpdateDataModelSchema,
+  UserActionSchema,
+  makeMessage,
+  newSurfaceId,
+  normalizeAgentReply,
+  parseClientCapabilities,
+  parseMessage,
+  parseUserAction,
+} from './messages.js';
 
 export function isKnownComponentType(type) {
   return Object.prototype.hasOwnProperty.call(componentSchemas, type);

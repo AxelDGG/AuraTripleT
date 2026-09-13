@@ -9,7 +9,7 @@ after(async () => {
   await client.close();
 });
 
-test('el servidor MCP expone las 14 herramientas bancarias', async () => {
+test('el servidor MCP expone las 16 herramientas bancarias', async () => {
   const tools = await listToolsForLlm();
   const names = tools.map((t) => t.function.name).sort();
   assert.deepEqual(names, [
@@ -17,6 +17,7 @@ test('el servidor MCP expone las 14 herramientas bancarias', async () => {
     'get_investments', 'get_monthly_cashflow', 'get_spending_by_category', 'get_portfolio',
     'get_portfolio_performance', 'get_watchlist',
     'get_transactions', 'list_credit_products', 'simulate_credit', 'transfer_funds',
+    'get_card_restructure_options', 'restructure_card_debt',
   ].sort());
   assert.ok(tools.every((t) => t.type === 'function' && t.function.parameters));
 });

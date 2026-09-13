@@ -1,65 +1,87 @@
 // Agente generativo: orquesta un LLM (proveedor intercambiable) + herramientas
-// MCP y produce especificaciones de UI (Norte UI Spec) que los clientes
-// renderizan en tiempo real.
+// MCP y produce superficies Norte A2UI que los clientes renderizan en tiempo real.
+//
+// El turno se transmite por partes (ver a2ui-stream.js): en cuanto el modelo
+// pide herramientas ya sale un esqueleto, y la interfaz final llega en varios
+// envíos de la raíz hacia abajo. Si la persona sigue sobre la misma pantalla
+// ("¿y a 6 meses?"), el modelo puede responder con un patch: solo cambian
+// valores del dataModel y la superficie se reconfigura sin reconstruirse.
 
 import {
   DEFAULT_FOLDER,
-  chartsPromptSection,
-  componentsPromptSection,
+  chartsPromptSectionCompact,
+  componentsPromptSectionV2,
   foldersPromptSection,
+  newSurfaceId,
 } from '@norte/a2ui-schema';
+import { CONFIRMABLE_TOOLS, authorizedTools, describeAction } from './actions.js';
+import { createA2uiEmitter, skeletonSurface } from './a2ui-stream.js';
 import { listToolsForLlm, callMcpTool } from './mcp-client.js';
 import { getLlmProvider } from './providers/index.js';
-import { parseUiJson } from './ui-spec.js';
+import { parseAgentReply } from './ui-spec.js';
 
 const MAX_TOOL_ROUNDS = 6;
 const MAX_HISTORY_MESSAGES = 10;
 const TOOL_RESULT_PREVIEW_CHARS = 220;
-// Solo un envío explícito del formulario de transferencia autoriza transfer_funds.
-const CONFIRMED_TRANSFER_PATTERN = /^\[form:transfer_funds\]/;
+// Cuánto del modelo de datos de la superficie activa se le muestra al modelo.
+const ACTIVE_MODEL_MAX_CHARS = 2500;
 
-const SYSTEM_PROMPT = `Eres "Norte", el asistente de IA de Banorte que genera interfaces bancarias en tiempo real.
+const RESPONSE_SHAPE = `{"message":"<3 a 5 frases; ver MENSAJE HABLADO>","title":"<máx 6 palabras>","folder":"<id de carpeta>","dataModel":{<datos que los controles pueden cambiar>},"ui":[<árbol de componentes A2UI>]}`;
+
+const PATCH_SHAPE = `{"message":"<qué cambió y qué significa>","title":"<mismo título>","folder":"<misma carpeta>","surfaceId":"<id de la superficie activa>","updates":[{"path":"/ruta/en/dataModel","value":<nuevo valor>}]}`;
+
+// El prompt compite con las tools y sus resultados por el presupuesto de tokens
+// por minuto del orquestador (Groq on-demand: 8k), así que es deliberadamente
+// denso: firmas en vez de ejemplos, una regla por línea, sin repetir.
+function buildSystemPrompt({ clientComponents } = {}) {
+  return `Eres "Norte", el asistente de IA de Banorte que genera interfaces bancarias en tiempo real con el protocolo A2UI.
 
 REGLAS:
-1. SIEMPRE respondes en español mexicano, tono profesional y cercano.
-2. Usa las herramientas disponibles para obtener datos reales del cliente ANTES de responder. Nunca inventes cifras. Si necesitas varias herramientas, llámalas TODAS en la misma ronda (tool calls en paralelo).
-3. Tu respuesta final DEBE ser ÚNICAMENTE un objeto JSON válido (sin texto antes ni después, sin markdown) con esta forma:
-{"message": "<resumen breve y útil en 1-3 frases>", "title": "<título corto, máx 6 palabras>", "folder": "<id de carpeta>", "ui": [<componentes>]}
+1. Siempre en español mexicano, tono profesional y cercano.
+2. Usa las herramientas para obtener datos reales ANTES de responder; nunca inventes cifras. Si necesitas varias, llámalas todas en la misma ronda.
+3. Tu respuesta final es ÚNICAMENTE un JSON válido (sin texto alrededor ni markdown): ${RESPONSE_SHAPE}
+4. Si hay una SUPERFICIE ACTIVA y la persona solo cambia un valor de esa misma pantalla (otro plazo, monto o cuenta), NO la reconstruyas: responde con un patch ${PATCH_SHAPE}. Si la intención cambió, genera una superficie nueva con "ui".
 
-${componentsPromptSection()}
+${componentsPromptSectionV2({ only: clientComponents })}
 
-${chartsPromptSection()}
+${chartsPromptSectionCompact()}
 
 ${foldersPromptSection()}
-El "title" es como se guarda la visualización en el historial: concreto y buscable ("Gastos de agosto", "Transferencia a Juan Pérez"), nunca genérico ("Resultado", "Tu consulta").
+"title": concreto y buscable ("Gastos de agosto", "Transferencia a Juan Pérez"), nunca genérico.
 
-FLUJOS INTERACTIVOS:
-- Si el usuario quiere transferir dinero y faltan datos, genera un "form" con action "transfer_funds": campos fromAccountId (select con cuentas de débito), destino (select con beneficiarios BEN-xx y cuentas propias ACC-xx), amount (number) y concept (text). Consulta primero get_accounts y get_beneficiaries para llenar los selects con opciones reales.
-- Los mensajes que empiezan con "[form:accion]" son envíos de formulario: ejecuta la herramienta correspondiente con esos valores y muestra el resultado (alert de éxito/error + datos actualizados).
-- NUNCA llames transfer_funds a partir de texto libre, aunque el usuario dé todos los datos: primero genera el formulario (prellenado con los valores que ya te dio) para que lo confirme. El sistema solo autoriza transfer_funds tras un envío "[form:transfer_funds]".
-- Para transfer_funds ejecutado con éxito muestra: alert success con folio, y balance_cards con el nuevo saldo.
-- Si el usuario pide simular un crédito sin datos completos, genera un form con action "simulate_credit" (productId select con CRED-AUTO/CRED-HIPO/CRED-PERS, amount number, months number).
+MENSAJE HABLADO ("message"): se lee encima de la interfaz y se reproduce en voz alta. 3 a 5 frases de texto corrido (sin markdown, listas ni emojis): qué generaste, las cifras que importan con su contexto y una observación accionable. No recites lo que ya se ve: la gráfica muestra el qué, tú explicas el porqué. Montos en pesos, en palabras naturales.
 
-VISUALIZACIÓN DE DATOS (qué herramienta alimenta qué gráfica):
-- get_spending_by_category: doughnut con 6 categorías o menos, horizontal_bar ordenada si son más. Si el usuario tiene presupuesto, manda "target".
-- get_monthly_cashflow: composed con barras de ingreso y gasto más una línea de flujo neto; si lo importante es el neto y cruza el cero, profit_loss.
-- get_transactions: transaction_list para el detalle. Si preguntan por patrones, heatmap (día de la semana × semana) o scatter (monto contra frecuencia).
-- get_portfolio / get_investments: doughnut de composición y horizontal_bar de rendimiento por posición.
-- get_portfolio_performance: area para el valor acumulado; candlestick solo si los datos traen apertura, máximo, mínimo y cierre.
-- Uso de la línea de crédito, avance de una meta de ahorro o salud financiera: gauge o ring con "value" y "max".
-- Decide el chartType ANTES de escribir los datos, y no repitas la misma cifra en dos gráficas de la misma vista.
+CÓMO ARMAR LA PANTALLA: empieza con Header; métricas en Grid de Kpi; cuentas en Grid o Row de AccountCard; Section o Card para bloques con sentido propio; Tabs para comparar escenarios. Si la persona va a decidir algo (plazo, monto, escenario): pon el valor en dataModel, un control ligado a esa ruta y TODO lo derivado con "call" (amortize, totalInterest, schedule, currency…) para que se recalcule sin llamarte. Cierra con la acción natural: un Button con event o un Form. Los datos de las herramientas van al dataModel tal cual y la interfaz los referencia por ruta.
 
-Los montos negativos son cargos. Formatea montos en el message como pesos mexicanos.`;
+FLUJOS:
+- Transferir dinero: genera un Form con action "transfer_funds" y campos fromAccountId (select de cuentas de débito), destino (select con beneficiarios BEN-xx y cuentas propias ACC-xx), amount (number) y concept (text); llena los selects con get_accounts y get_beneficiaries. NUNCA llames transfer_funds desde texto libre aunque tengas todos los datos: primero el formulario prellenado. El sistema solo la autoriza tras "[form:transfer_funds]" o "[action:transfer_funds]". Con éxito: Alert success con folio + AccountCard con el nuevo saldo.
+- Los mensajes "[action:nombre] {...}" y "[form:nombre] ..." son acciones sobre la interfaz: ejecuta la herramienta correspondiente con esos valores y muestra el resultado (Alert de éxito/error + datos actualizados).
+- Simular crédito sin datos completos: Form con action "simulate_credit" (productId select CRED-AUTO/CRED-HIPO/CRED-PERS, amount, months).
+- Pagar menos intereses, reestructurar o diferir la tarjeta: llama get_card_restructure_options y arma el plan con dataModel {"plan":{"accountId","balance","annualRate","months","options"}}, un Slider (o ChoiceChips) ligado a /plan/months, Kpi derivados con amortize, totalInterest y effectiveAnnual, una Chart line con schedule (field "balance") y scheduleLabels, y un Button "Aplicar plan" con event "confirm_restructure" y context {"accountId","months":{"path":"/plan/months"}}. Tras "[action:confirm_restructure]" ejecuta restructure_card_debt y muestra Alert success con el folio y el nuevo pago mensual.
+
+QUÉ GRÁFICA POR HERRAMIENTA: get_spending_by_category → doughnut (≤6 categorías) o horizontal_bar ordenada; get_monthly_cashflow → composed (barras ingreso/gasto + línea neto) o profit_loss si el neto cruza cero; get_transactions → TransactionList (heatmap o scatter si preguntan por patrones); get_portfolio / get_investments → doughnut de composición y horizontal_bar de rendimiento; get_portfolio_performance → area; uso de línea de crédito, metas o salud financiera → gauge o ring con value y max. Decide el chartType antes de escribir los datos y no repitas una cifra en dos gráficas.
+
+Los montos negativos son cargos.`;
+}
 
 const REPAIR_PROMPT =
-  'Tu respuesta no fue JSON válido. Responde ÚNICAMENTE con el objeto JSON {"message":"...","title":"...","folder":"...","ui":[...]} sin ningún texto adicional.';
+  'Tu respuesta no fue JSON válido. Responde ÚNICAMENTE con el objeto JSON {"message":"...","title":"...","folder":"...","dataModel":{...},"ui":[...]} sin ningún texto adicional.';
 
-function buildFallbackSpec() {
+function buildFallbackReply() {
   return {
+    kind: 'surface',
     message: 'No pude generar la interfaz en este momento. Intenta reformular tu solicitud.',
     title: 'Sin respuesta del agente',
     folder: DEFAULT_FOLDER,
     ui: [{ type: 'alert', level: 'error', text: 'El agente no produjo una respuesta válida tras varios intentos.' }],
+    surface: {
+      surfaceId: newSurfaceId(),
+      components: [
+        { id: 'root', component: 'Stack', children: ['fallback'] },
+        { id: 'fallback', component: 'Alert', level: 'error', text: 'El agente no produjo una respuesta válida tras varios intentos.' },
+      ],
+      dataModel: {},
+    },
   };
 }
 
@@ -73,15 +95,15 @@ function parseToolArgs(call) {
 
 // Ejecuta las tool calls de una ronda vía MCP y devuelve los mensajes `tool`
 // que el modelo recibe en la siguiente ronda.
-async function executeToolCalls(toolCalls, { isConfirmedTransfer, emit }) {
+async function executeToolCalls(toolCalls, { authorized, emit }) {
   const toolMessages = [];
   for (const call of toolCalls) {
     const name = call.function.name;
     let args = parseToolArgs(call);
     // Compuerta de confirmación en código: el modelo no puede autorizar una
-    // transferencia; solo el envío explícito del formulario lo hace.
-    if (name === 'transfer_funds') {
-      args = { ...args, confirmed: isConfirmedTransfer };
+    // operación con dinero; solo un envío explícito (formulario o botón) lo hace.
+    if (CONFIRMABLE_TOOLS.has(name)) {
+      args = { ...args, confirmed: authorized.has(name) };
     }
     emit({ type: 'tool_call', name, args });
     let resultText;
@@ -96,19 +118,73 @@ async function executeToolCalls(toolCalls, { isConfirmedTransfer, emit }) {
   return toolMessages;
 }
 
-export async function runAgent({ userMessage, history = [], emit, signal, provider = getLlmProvider() }) {
-  const isConfirmedTransfer = CONFIRMED_TRANSFER_PATTERN.test(userMessage);
+// Resumen del modelo de datos para el prompt: las listas largas (opciones de
+// un plan, movimientos) se recortan; el modelo necesita las rutas y los valores
+// que la persona movió, no cada fila. Cada token cuenta contra el presupuesto
+// por minuto del orquestador.
+const MODEL_LIST_PREVIEW = 3;
+function summarizeModel(value, depth = 0) {
+  if (Array.isArray(value)) {
+    if (value.length <= MODEL_LIST_PREVIEW || depth > 6) return value.map((v) => summarizeModel(v, depth + 1));
+    return [...value.slice(0, MODEL_LIST_PREVIEW).map((v) => summarizeModel(v, depth + 1)), `…(${value.length} en total)`];
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [key, item] of Object.entries(value)) out[key] = summarizeModel(item, depth + 1);
+    return out;
+  }
+  return value;
+}
+
+// Contexto de la superficie que la persona tiene en pantalla: el id (para los
+// patches) y su modelo de datos (lo que la persona movió antes de preguntar).
+function activeSurfaceMessage(surface) {
+  if (!surface?.surfaceId) return null;
+  let model = '';
+  try {
+    model = JSON.stringify(summarizeModel(surface.dataModel ?? {}));
+  } catch {
+    model = '{}';
+  }
+  if (model.length > ACTIVE_MODEL_MAX_CHARS) model = `${model.slice(0, ACTIVE_MODEL_MAX_CHARS)}…`;
+  return {
+    role: 'system',
+    content: `SUPERFICIE ACTIVA: surfaceId "${surface.surfaceId}"${surface.title ? ` ("${surface.title}")` : ''}. Su dataModel actual es: ${model}. Si la persona solo cambia un valor de esta pantalla, responde con un patch sobre este surfaceId.`,
+  };
+}
+
+export async function runAgent({
+  userMessage,
+  history = [],
+  emit,
+  signal,
+  provider = getLlmProvider(),
+  // Norte A2UI v2
+  action = null,
+  surface = null,
+  client = null,
+  streamDelayMs,
+}) {
+  const authorized = authorizedTools({ userMessage, action });
+  const a2ui = createA2uiEmitter(emit);
+  const surfaceId = newSurfaceId();
+  let skeletonShown = false;
 
   emit({ type: 'status', text: 'Conectando con herramientas bancarias (MCP)...' });
   const tools = await listToolsForLlm();
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: buildSystemPrompt({ clientComponents: client?.components }) },
     ...history.slice(-MAX_HISTORY_MESSAGES),
-    { role: 'user', content: userMessage },
   ];
+  const active = activeSurfaceMessage(surface);
+  if (active) messages.push(active);
+  messages.push({ role: 'user', content: action ? describeAction(action) : userMessage });
 
   emit({ type: 'status', text: 'Analizando tu solicitud...' });
+
+  const streamOptions = { delayMs: streamDelayMs, signal };
+  if (streamOptions.delayMs === undefined) delete streamOptions.delayMs;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (signal?.aborted) return null;
@@ -120,16 +196,48 @@ export async function runAgent({ userMessage, history = [], emit, signal, provid
     });
 
     if (assistantMsg.tool_calls?.length) {
+      // Ya sabemos qué tipo de pantalla viene: el esqueleto sale antes de que
+      // regrese el primer dato. Un patch sobre la superficie activa no lo
+      // necesita, pero todavía no sabemos si será patch; se pinta igual y, si
+      // termina siendo patch, se retira.
+      if (!skeletonShown) {
+        a2ui.createSurface(skeletonSurface(surfaceId, assistantMsg.tool_calls.map((c) => c.function.name)));
+        skeletonShown = true;
+      }
       messages.push(assistantMsg);
-      messages.push(...(await executeToolCalls(assistantMsg.tool_calls, { isConfirmedTransfer, emit })));
+      messages.push(...(await executeToolCalls(assistantMsg.tool_calls, { authorized, emit })));
       emit({ type: 'status', text: 'Generando tu interfaz...' });
       continue;
     }
 
-    const parsed = parseUiJson(assistantMsg.content);
-    if (parsed) {
-      emit({ type: 'ui', message: parsed.message, ui: parsed.ui, folder: parsed.folder, title: parsed.title });
-      return parsed;
+    const reply = parseAgentReply(assistantMsg.content, { activeSurfaceId: surface?.surfaceId, surfaceId });
+    if (reply) {
+      if (reply.kind === 'patch') {
+        if (skeletonShown) a2ui.deleteSurface({ surfaceId });
+        a2ui.streamPatch(reply.surfaceId, reply.updates);
+        emit({
+          type: 'ui',
+          patch: true,
+          surfaceId: reply.surfaceId,
+          updates: reply.updates,
+          message: reply.message,
+          title: reply.title,
+          folder: reply.folder,
+          ui: [],
+        });
+        return reply;
+      }
+      await a2ui.streamSurface(reply.surface, { skeletonShown, ...streamOptions });
+      emit({
+        type: 'ui',
+        surfaceId: reply.surface.surfaceId,
+        surface: reply.surface,
+        message: reply.message,
+        title: reply.title,
+        folder: reply.folder,
+        ui: reply.ui,
+      });
+      return reply;
     }
 
     // Reintento de reparación: pedir solo el JSON.
@@ -137,7 +245,10 @@ export async function runAgent({ userMessage, history = [], emit, signal, provid
     messages.push({ role: 'user', content: REPAIR_PROMPT });
   }
 
-  const fallback = buildFallbackSpec();
-  emit({ type: 'ui', ...fallback, fallback: true });
+  const fallback = buildFallbackReply();
+  await a2ui.streamSurface(fallback.surface, { skeletonShown: false, ...streamOptions });
+  emit({ type: 'ui', ...fallback, kind: undefined, surfaceId: fallback.surface.surfaceId, fallback: true });
   return fallback;
 }
+
+export { buildSystemPrompt };

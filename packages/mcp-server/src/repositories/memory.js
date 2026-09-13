@@ -158,5 +158,21 @@ export function createMemoryRepository({ seed = bankSeed, market = marketSeed } 
       const from = accounts.find((a) => a.id === fromAccountId);
       return { ok: true, debitTransactionId, creditTransactionId, newBalance: from.balance };
     },
+
+    // Reestructura (simulada): la tarjeta queda con el plan y su mensualidad
+    // pasa a ser el pago del plan. El saldo no se mueve: sigue siendo deuda,
+    // solo cambia cómo se paga.
+    async applyRestructure({ accountId, plan }) {
+      const account = state.accounts.find((a) => a.id === accountId);
+      if (!account) return { ok: false, reason: 'account_not_found' };
+      const firstPaymentDate = account.paymentDue ?? plan.startedAt;
+      state = {
+        ...state,
+        accounts: state.accounts.map((a) =>
+          a.id === accountId ? { ...a, plan: { ...plan, firstPaymentDate }, minimumPayment: plan.monthlyPayment, interestRate: plan.annualRate } : a,
+        ),
+      };
+      return { ok: true, firstPaymentDate };
+    },
   };
 }

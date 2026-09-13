@@ -1,0 +1,72 @@
+# Despliegue continuo a Vultr.
+#
+# Cada push a `main` que toque la API, los paquetes o la infra entra al servidor
+# por SSH, actualiza el repo y levanta el compose. La app móvil y el widget
+# apuntan a ese dominio, así que un merge a main se ve en el teléfono.
+#
+# Secretos que hay que crear en el repo (Settings → Secrets → Actions):
+#   VULTR_HOST         IP o dominio del Cloud Compute
+#   VULTR_USER         usuario SSH (normalmente `root` o `deploy`)
+#   VULTR_SSH_KEY      llave privada con acceso al servidor
+#   VULTR_APP_DIR      ruta del repo en el servidor (p. ej. /opt/norte-ai)
+
+name: Deploy a Vultr
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'infra/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-vultr.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vultr
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Nada llega al servidor sin la suite verde: `main` siempre se puede demostrar.
+      - run: npm test
+        env:
+          GROQ_API_KEY: test-key
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: ${{ secrets.VULTR_USER }}
+          key: ${{ secrets.VULTR_SSH_KEY }}
+          script_stop: true
+          script: |
+            cd ${{ secrets.VULTR_APP_DIR }}
+            git fetch --all
+            git reset --hard origin/main
+            docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml up -d --build
+            docker image prune -f
+
+      - name: Verificar que la API respondió
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS "https://${{ secrets.VULTR_HOST }}/api/health" > /dev/null; then
+              echo "API arriba"; exit 0
+            fi
+            echo "Esperando a la API… ($i/12)"; sleep 5
+          done
+          echo "La API no respondió tras el despliegue"; exit 1

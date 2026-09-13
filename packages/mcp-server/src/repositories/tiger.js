@@ -265,6 +265,23 @@ export function createTigerRepository({ connectionString = process.env.DATABASE_
       }
     },
 
+    // Reestructura (simulada). La tabla `accounts` no tiene columna para el
+    // plan completo, así que persiste lo que sí existe: la mensualidad pasa a
+    // ser el pago del plan y la tasa, la del plan. El detalle del plan vive en
+    // la respuesta de la tool y en la superficie archivada en `ui_history`.
+    async applyRestructure({ accountId, plan }) {
+      const updated = await db.query(
+        `UPDATE accounts
+            SET minimum_payment = $2,
+                interest_rate = $3
+          WHERE id = $1 AND type = 'credit'
+      RETURNING payment_due`,
+        [accountId, plan.monthlyPayment, plan.annualRate],
+      );
+      if (updated.rowCount === 0) return { ok: false, reason: 'account_not_found' };
+      return { ok: true, firstPaymentDate: day(updated.rows[0].payment_due) ?? plan.startedAt };
+    },
+
     // Solo cierra el pool si lo creó este repositorio (en tests se inyecta uno).
     async close() {
       if (!pool) await db.end();

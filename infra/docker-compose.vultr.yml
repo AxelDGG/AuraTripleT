@@ -1,0 +1,47 @@
+# Producción en Vultr Cloud Compute.
+#
+# Es el mismo `docker-compose.yml` de local más Caddy delante, y sin
+# TimescaleDB: en producción `DATABASE_URL` apunta a Tiger Cloud. Esa es
+# literalmente la promesa del reto de Vultr —"develop locally, deploy
+# globally"— cumplida con un solo archivo de diferencia.
+#
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml up -d
+#
+# Requiere en el .env del servidor:
+#   NORTE_DOMAIN   dominio (o <ip-con-guiones>.sslip.io) con el que Caddy pide el certificado
+#   AUTH_SECRET    llave de firma de las sesiones (obligatoria con NODE_ENV=production)
+#   DATABASE_URL   Tiger Cloud
+
+services:
+  api:
+    # La API deja de estar expuesta: solo Caddy la alcanza por la red interna.
+    ports: !reset []
+    environment:
+      PORT: 3040
+      NODE_ENV: production
+    depends_on: !reset []
+    restart: always
+
+  # En producción la base es Tiger Cloud, no un contenedor.
+  timescaledb:
+    profiles: ['local-only']
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - api
+    env_file:
+      - ../.env
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: always
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -22,6 +22,30 @@ function effectiveLimit(limit) {
   return Math.min(wanted, MAX_TRANSACTION_LIMIT);
 }
 
+// Reestructura de tarjeta: el saldo se convierte en un plan de pagos fijos a
+// tasa preferente. Plazos y tasa son reglas de negocio del banco simulado.
+export const RESTRUCTURE_TERMS = [6, 12, 18, 24, 36];
+export const RESTRUCTURE_ANNUAL_RATE = 26.9;
+// Tasa de la tarjeta si la cuenta no la trae (las tarjetas del seed sí).
+const DEFAULT_CARD_RATE = 45.9;
+
+// Pago mensual fijo (fórmula francesa) y totales; misma fórmula que la
+// renderer function `amortize` del cliente, así lo que ve la persona al mover
+// el slider coincide centavo a centavo con lo que aplica el servidor.
+function planFor(amount, months, annualRate) {
+  const rate = annualRate / 100 / 12;
+  const monthlyPayment = rate > 0 ? (amount * rate) / (1 - Math.pow(1 + rate, -months)) : amount / months;
+  const totalPayment = monthlyPayment * months;
+  return {
+    months,
+    annualRate,
+    monthlyPayment: round2(monthlyPayment),
+    totalPayment: round2(totalPayment),
+    totalInterest: round2(totalPayment - amount),
+    effectiveAnnual: round2((Math.pow(1 + rate, 12) - 1) * 100),
+  };
+}
+
 // Tasa dentro del rango del producto según plazo (plazos largos pagan más).
 function annualRateFor(product, months) {
   const spread = product.maxRate - product.minRate;
@@ -180,6 +204,95 @@ export function createBankingTools(repo) {
     };
   }
 
+  // ---------- Reestructura de tarjeta (flujo A2UI de la demo) ----------
+
+  // Cuenta de crédito objetivo: la indicada o la primera tarjeta del cliente.
+  async function creditAccount(accountId) {
+    if (accountId) {
+      const account = await repo.findAccount(accountId);
+      if (!account) return { error: `Cuenta no encontrada: ${accountId}` };
+      if (account.type !== 'credit') return { error: `${account.name} no es una tarjeta de crédito.` };
+      return { account };
+    }
+    const account = (await repo.listAccounts()).find((a) => a.type === 'credit');
+    return account ? { account } : { error: 'El cliente no tiene tarjeta de crédito.' };
+  }
+
+  // Opciones para convertir el saldo de la tarjeta en un plan de pagos fijos a
+  // tasa preferente. Los números son los que el cliente mueve en la pantalla
+  // (slider de plazo): el cálculo del plan elegido lo repite el cliente con las
+  // mismas fórmulas (renderer functions de A2UI), aquí van todos los plazos
+  // para que el modelo no invente ninguno.
+  async function getCardRestructureOptions({ accountId } = {}) {
+    const found = await creditAccount(accountId);
+    if (found.error) return { error: found.error };
+    const { account } = found;
+    const balance = round2(Math.abs(account.balance));
+    if (balance <= 0) return { error: `${account.name} no tiene saldo por reestructurar.` };
+    const cardRate = account.interestRate ?? DEFAULT_CARD_RATE;
+    const options = RESTRUCTURE_TERMS.map((months) => {
+      const plan = planFor(balance, months, RESTRUCTURE_ANNUAL_RATE);
+      // Referencia: el mismo saldo pagado en el mismo plazo a la tasa de la tarjeta.
+      const atCardRate = planFor(balance, months, cardRate);
+      return { ...plan, interestAtCardRate: atCardRate.totalInterest, savings: round2(atCardRate.totalInterest - plan.totalInterest) };
+    });
+    return {
+      accountId: account.id,
+      name: account.name,
+      balance,
+      currentRate: cardRate,
+      annualRate: RESTRUCTURE_ANNUAL_RATE,
+      minimumPayment: account.minimumPayment ?? null,
+      paymentDue: account.paymentDue ?? null,
+      terms: RESTRUCTURE_TERMS,
+      defaultMonths: 12,
+      options,
+      existingPlan: account.plan ?? null,
+    };
+  }
+
+  // Aplica el plan (simulado). Misma compuerta que transfer_funds: `confirmed`
+  // lo fija el servidor tras el evento confirm_restructure, nunca el modelo.
+  async function restructureCardDebt({ accountId, months, confirmed }) {
+    if (confirmed !== true) {
+      return { error: 'La reestructura requiere confirmación explícita del usuario desde el botón "Aplicar plan".' };
+    }
+    const term = Number(months);
+    if (!RESTRUCTURE_TERMS.includes(term)) {
+      return { error: `El plazo debe ser uno de: ${RESTRUCTURE_TERMS.join(', ')} meses.` };
+    }
+    const found = await creditAccount(accountId);
+    if (found.error) return { error: found.error };
+    const { account } = found;
+    const balance = round2(Math.abs(account.balance));
+    if (balance <= 0) return { error: `${account.name} no tiene saldo por reestructurar.` };
+
+    const plan = planFor(balance, term, RESTRUCTURE_ANNUAL_RATE);
+    const date = new Date().toISOString().slice(0, 10);
+    const folio = `REST-${Date.now().toString().slice(-6)}-${term}`;
+    const applied = await repo.applyRestructure({
+      accountId: account.id,
+      plan: { folio, months: term, annualRate: RESTRUCTURE_ANNUAL_RATE, monthlyPayment: plan.monthlyPayment, balance, startedAt: date },
+    });
+    if (!applied.ok) return { error: 'No se pudo aplicar el plan.' };
+
+    return {
+      success: true,
+      folio,
+      accountId: account.id,
+      name: account.name,
+      balance,
+      months: term,
+      annualRate: RESTRUCTURE_ANNUAL_RATE,
+      previousRate: account.interestRate ?? DEFAULT_CARD_RATE,
+      monthlyPayment: plan.monthlyPayment,
+      totalInterest: plan.totalInterest,
+      totalPayment: plan.totalPayment,
+      firstPaymentDate: applied.firstPaymentDate ?? null,
+      date,
+    };
+  }
+
   // ---------- Inversión bursátil (dashboard) ----------
 
   async function getPortfolio() {
@@ -243,6 +356,8 @@ export function createBankingTools(repo) {
     listCreditProducts,
     simulateCredit,
     transferFunds,
+    getCardRestructureOptions,
+    restructureCardDebt,
     getPortfolio,
     getWatchlist,
     getPortfolioPerformance,

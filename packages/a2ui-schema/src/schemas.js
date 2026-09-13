@@ -67,7 +67,7 @@ export const HeaderSchema = z
   .object({ type: z.literal('header'), title: requiredText, subtitle: optionalText, badge: optionalText })
   .passthrough();
 
-const KpiItemSchema = z
+export const KpiItemSchema = z
   .object({ label: requiredText, value: requiredText, delta: optionalText, trend: enumOr(TRENDS, 'neutral'), icon: optionalText })
   .passthrough();
 
@@ -75,7 +75,7 @@ export const KpiGridSchema = z
   .object({ type: z.literal('kpi_grid'), items: objectList(KpiItemSchema) })
   .passthrough();
 
-const AccountCardSchema = z
+export const AccountCardSchema = z
   .object({
     name: text.catch('Cuenta'),
     number: optionalText,

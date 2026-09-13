@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#eb0029" />
+  <title>Banorte · Banca en línea</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/portal.css" />
+</head>
+<body class="page-scroll">
+  <div class="page" id="app">
+
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-lockup" src="img/Banorte_Header.png" alt="Banorte" width="282" height="74" />
+        <img class="brand-mark" src="img/Banorte_White.png" alt="Banorte" width="126" height="70" />
+      </div>
+      <nav class="topbar-nav" aria-label="Accesos">
+        <button type="button" class="top-link" id="locationBtn"><i data-icon="location"></i><span data-i18n="top.location">UBICACIÓN</span></button>
+        <button type="button" class="top-link" id="contactBtn"><img class="top-img" src="img/Phone_White.png" alt="" width="83" height="83" /><span data-i18n="top.contact">CONTACTO</span></button>
+        <button type="button" class="top-exit" id="exitBtn"><i data-icon="logout"></i><span data-i18n="top.exit">SALIR</span></button>
+      </nav>
+    </header>
+
+    <div class="error-banner" id="banner" hidden></div>
+
+    <main class="portal">
+
+      <!-- ===== Columna principal ===== -->
+      <div class="portal-main">
+
+        <header class="greet" data-anim style="--i:0">
+          <div>
+            <h1 class="greet-title" id="greetTitle">…</h1>
+            <p class="greet-sub" data-i18n="portal.greet.sub">Aquí tienes un resumen de tu cuenta y tus movimientos recientes.</p>
+          </div>
+          <p class="greet-date"><i data-icon="clock"></i><span id="greetDate"></span></p>
+        </header>
+
+        <section class="hero-row" aria-label="Saldo">
+          <!-- Tarjeta roja: la cuenta principal -->
+          <article class="balance-card" data-anim style="--i:1">
+            <p class="bc-name" id="balanceName">…</p>
+            <p class="bc-number" id="balanceNumber"></p>
+            <p class="bc-amount num" id="balanceAmount">…</p>
+            <p class="bc-caption" data-i18n="portal.balance.caption">Saldo disponible</p>
+            <button type="button" class="bc-cta" id="seeMovements">
+              <span data-i18n="portal.balance.cta">Ver movimientos</span><i data-icon="arrowRight"></i>
+            </button>
+            <span class="bc-glow" aria-hidden="true"></span>
+          </article>
+
+          <!-- Tarjeta de la app móvil: la misma sesión, en el teléfono -->
+          <article class="promo-card" data-anim style="--i:2">
+            <h2 class="promo-title" data-i18n="portal.promo.title">Tu dinero, siempre contigo</h2>
+            <p class="promo-copy" data-i18n="portal.promo.copy">Descarga la app Banorte y ten el control de tus finanzas desde donde estés.</p>
+            <button type="button" class="promo-cta" id="promoBtn" data-i18n="portal.promo.cta">Conoce más</button>
+            <div class="promo-phone" aria-hidden="true"><span></span></div>
+          </article>
+        </section>
+
+        <!-- Accesos rápidos. El primero es el asistente: es lo que distingue a
+             esta banca en línea del resto. -->
+        <nav class="quick" id="quick" aria-label="Accesos rápidos"></nav>
+
+        <section class="panel movements" id="movements" aria-labelledby="movementsTitle" data-anim style="--i:4">
+          <header class="panel-head">
+            <h2 class="panel-title" id="movementsTitle" data-i18n="portal.movements.title">Movimientos recientes</h2>
+            <button type="button" class="panel-more" id="allMovements">
+              <span data-i18n="portal.movements.all">Ver todos</span><i data-icon="chevronRight"></i>
+            </button>
+          </header>
+          <div class="table-wrap">
+            <table class="movements-table">
+              <thead>
+                <tr>
+                  <th scope="col" data-i18n="portal.movements.date">Fecha</th>
+                  <th scope="col" data-i18n="portal.movements.description">Descripción</th>
+                  <th scope="col" data-i18n="portal.movements.reference">Referencia</th>
+                  <th scope="col" class="ta-right" data-i18n="portal.movements.amount">Movimiento</th>
+                  <th scope="col" class="ta-right" data-i18n="portal.movements.balance">Saldo</th>
+                </tr>
+              </thead>
+              <tbody id="movementsBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== Columna lateral ===== -->
+      <aside class="portal-side" aria-label="Alertas y favoritos">
+
+        <section class="panel" data-anim style="--i:2" aria-labelledby="alertsTitle">
+          <header class="panel-head">
+            <h2 class="panel-title with-icon" id="alertsTitle"><i data-icon="bell"></i><span data-i18n="portal.alerts.title">Alertas</span></h2>
+            <button type="button" class="panel-more" id="allAlerts">
+              <span data-i18n="portal.alerts.all">Ver todas</span><i data-icon="chevronRight"></i>
+            </button>
+          </header>
+          <ul class="alerts" id="alerts" role="list"></ul>
+        </section>
+
+        <section class="panel security" data-anim style="--i:3" aria-labelledby="securityTitle">
+          <h2 class="panel-title with-icon" id="securityTitle"><i data-icon="shield"></i><span data-i18n="portal.security.title">Tu seguridad es primero</span></h2>
+          <p class="security-copy" data-i18n="portal.security.copy">Activa la autenticación en dos pasos y mantén tu cuenta más protegida.</p>
+          <button type="button" class="btn-outline" id="securityBtn" data-i18n="portal.security.cta">Configurar ahora</button>
+          <div class="security-art" aria-hidden="true"><i data-icon="lock"></i></div>
+        </section>
+
+        <section class="panel" data-anim style="--i:4" aria-labelledby="favTitle">
+          <header class="panel-head">
+            <h2 class="panel-title with-icon" id="favTitle"><i data-icon="star"></i><span data-i18n="portal.favorites.title">Tus favoritos</span></h2>
+            <button type="button" class="panel-more" id="allFavorites">
+              <span data-i18n="portal.favorites.all">Ver todos</span><i data-icon="chevronRight"></i>
+            </button>
+          </header>
+          <ul class="favorites" id="favorites" role="list"></ul>
+        </section>
+
+      </aside>
+    </main>
+  </div>
+
+  <div class="toast-root" id="toastRoot" aria-live="polite"></div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/inicio.js"></script>
+</body>
+</html>

@@ -175,6 +175,18 @@ export function componentsPromptSection() {
   ].join('\n');
 }
 
+// Versión compacta del catálogo de gráficas (un tercio de los tokens) para el
+// prompt A2UI, que compite con las tools y sus resultados por el presupuesto
+// de tokens por minuto del orquestador.
+export function chartsPromptSectionCompact() {
+  return [
+    `GRÁFICAS (chartType de Chart): ${CHART_GUIDE.map((c) => `${c.type}: ${c.when}`).join(' · ')}.`,
+    'Datos: labels + datasets numéricos; scatter data:[{x,y}]; candlestick data:[{o,h,l,c}]; ring/gauge usan value+max+label sin datasets; composed lleva kind bar|line|area y axis:"right" en la serie de otra escala.',
+    'Opciones: format currency|percent|number|compact (percent solo si ya son porcentajes), unit, target+targetLabel (referencia), stacked, legend:false con una sola serie, subtitle, caption.',
+    'Elige por la pregunta: reparto → doughnut (≤6 rebanadas, si no horizontal_bar ordenada); meta o límite → ring/gauge; tiempo → line/area (profit_loss si cruza cero); nunca pie con negativos; pesos + porcentaje → composed. Una gráfica que comunica vale más que tres; si la tabla ya lo dice, no grafiques.',
+  ].join('\n');
+}
+
 // Segundo bloque del prompt: el catálogo de gráficas y cómo escoger entre ellas.
 export function chartsPromptSection() {
   return [

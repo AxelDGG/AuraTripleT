@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#eb0029" />
+  <title>Banorte · Inicia sesión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/portal.css" />
+  <link rel="stylesheet" href="css/auth.css" />
+</head>
+<body class="page-scroll">
+  <div class="page" id="app">
+
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-lockup" src="img/Banorte_Header.png" alt="Banorte" width="282" height="74" />
+        <img class="brand-mark" src="img/Banorte_White.png" alt="Banorte" width="126" height="70" />
+      </div>
+      <nav class="topbar-nav" aria-label="Accesos">
+        <button type="button" class="top-link" id="locationBtn"><i data-icon="location"></i><span data-i18n="top.location">UBICACIÓN</span></button>
+        <button type="button" class="top-link" id="contactBtn"><img class="top-img" src="img/Phone_White.png" alt="" width="83" height="83" /><span data-i18n="top.contact">CONTACTO</span></button>
+      </nav>
+    </header>
+
+    <main class="auth">
+      <div class="auth-card" data-anim style="--i:0">
+
+        <!-- Panel rojo: la promesa de marca y la ilustración de acceso seguro -->
+        <section class="auth-pitch">
+          <h1 class="auth-pitch-title" data-i18n="auth.pitch.title">Tu banco,
+siempre contigo</h1>
+          <p class="auth-pitch-copy" data-i18n="auth.pitch.copy">Accede de forma segura a tus cuentas, realiza tus operaciones y mantén el control de tus finanzas.</p>
+          <div class="auth-art" aria-hidden="true">
+            <div class="art-card">
+              <span class="art-avatar"></span>
+              <span class="art-line"></span>
+              <span class="art-line short"></span>
+            </div>
+            <div class="art-lock"><i data-icon="lock"></i></div>
+          </div>
+        </section>
+
+        <!-- Panel blanco: el formulario -->
+        <section class="auth-form-pane">
+          <h2 class="auth-title" data-i18n="auth.title">Inicia sesión</h2>
+          <p class="auth-sub" data-i18n="auth.subtitle">Ingresa tus datos para continuar</p>
+
+          <form id="loginForm" novalidate>
+            <label class="field-label" for="username" data-i18n="auth.user">Usuario</label>
+            <div class="field">
+              <i class="field-icon" data-icon="user"></i>
+              <input type="text" id="username" name="username" autocomplete="username" maxlength="120"
+                autocapitalize="none" spellcheck="false" required
+                data-i18n-placeholder="auth.user.placeholder" placeholder="Ingresa tu usuario" />
+            </div>
+
+            <label class="field-label" for="password" data-i18n="auth.password">Contraseña</label>
+            <div class="field">
+              <i class="field-icon" data-icon="lock"></i>
+              <input type="password" id="password" name="password" autocomplete="current-password" maxlength="120" required
+                data-i18n-placeholder="auth.password.placeholder" placeholder="Ingresa tu contraseña" />
+              <button type="button" class="field-reveal" id="revealBtn" aria-pressed="false"
+                data-i18n-label="auth.reveal" aria-label="Mostrar contraseña"><i data-icon="eye"></i></button>
+            </div>
+
+            <p class="auth-error" id="loginError" role="alert" hidden></p>
+
+            <button type="submit" class="btn-primary" id="loginSubmit">
+              <span class="btn-label" data-i18n="auth.submit">Iniciar sesión</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+
+          <button type="button" class="auth-link" id="forgotBtn" data-i18n="auth.forgot">¿Olvidaste tu contraseña?</button>
+
+          <div class="auth-divider" role="separator"><span></span></div>
+
+          <button type="button" class="btn-ghost" id="registerBtn">
+            <i data-icon="idCard"></i><span data-i18n="auth.register">Regístrate</span>
+          </button>
+
+          <!-- Credenciales sintéticas: esta es una demo, no hay clientes reales
+               detrás. Se muestran en pantalla para que cualquiera pueda entrar. -->
+          <p class="auth-demo" data-i18n="auth.demo">Demo · regina · carlos · maria — contraseña Banorte2026</p>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <div class="toast-root" id="toastRoot" aria-live="polite"></div>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

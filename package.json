@@ -18,6 +18,8 @@
     "db:setup": "node scripts/db-setup.js",
     "db:build-seed": "npm run db:build-seed -w @norte/mcp-server",
     "db:verify": "node scripts/db-verify.js",
+    "sync:a2ui": "node scripts/sync-a2ui-core.js",
+    "check:a2ui": "node scripts/sync-a2ui-core.js --check",
     "google:auth": "npm run google:auth -w @norte/mcp-server"
   },
   "engines": {

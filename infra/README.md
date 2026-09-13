@@ -29,9 +29,61 @@ docker build -f infra/Dockerfile -t norte-api .
 docker run --rm -p 3040:3040 --env-file .env norte-api
 ```
 
-## Producción (pendiente)
+## Producción en Vultr
 
-- `vultr/`: el mismo compose levantando solo `api` (`up -d --no-deps api`) con `DATABASE_URL` de Tiger Cloud,
-  Caddy como reverse proxy con HTTPS y GitHub Action que hace `docker compose up -d` por SSH en cada
-  push a `main`.
+El mismo compose más Caddy delante, y sin TimescaleDB (en producción `DATABASE_URL` apunta a Tiger
+Cloud). Esa diferencia de un archivo es literalmente la promesa del reto de Vultr.
+
+### 1. Servidor
+
+Un Vultr Cloud Compute con Docker. Luego, en el servidor:
+
+```bash
+git clone <este-repo> /opt/norte-ai && cd /opt/norte-ai
+```
+
+Crea el `.env` con `GROQ_API_KEY`, `ELEVENLABS_*`, `DATABASE_URL` (Tiger Cloud) y además:
+
+```bash
+NODE_ENV=production
+AUTH_SECRET=<64 hex>          # node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+NORTE_DOMAIN=<dominio>
+```
+
+**Sin dominio propio** usa [sslip.io](https://sslip.io): para la IP `149.28.10.5` el dominio es
+`149-28-10-5.sslip.io`. Resuelve a esa IP sin registrar nada, y como es un nombre válido Let's
+Encrypt sí emite certificado — la app móvil habla HTTPS sin tráfico en claro.
+
+### 2. Levantar
+
+```bash
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.vultr.yml up -d --build
+```
+
+Caddy pide y renueva el certificado solo. `/api/chat` y `/api/voice/*` se proxean con
+`flush_interval -1`: sin eso Caddy almacenaría la respuesta y el streaming SSE llegaría de golpe al
+final, que es justo lo que no queremos que vea el jurado.
+
+### 3. Despliegue continuo
+
+[`.github/workflows/deploy-vultr.yml`](../.github/workflows/deploy-vultr.yml) corre `npm test`, entra
+por SSH y levanta el compose en cada push a `main` que toque la API, los paquetes o la infra. Después
+verifica `/api/health` y falla si no responde.
+
+Secretos que hay que crear en el repo (Settings → Secrets → Actions):
+
+| Secreto | Qué es |
+|---|---|
+| `VULTR_HOST` | IP o dominio del Cloud Compute |
+| `VULTR_USER` | Usuario SSH |
+| `VULTR_SSH_KEY` | Llave privada con acceso al servidor |
+| `VULTR_APP_DIR` | Ruta del repo en el servidor (p. ej. `/opt/norte-ai`) |
+
+### 4. La app móvil
+
+`PUBLIC_API_URL=https://<NORTE_DOMAIN>` al compilar el APK, o se cambia en caliente desde
+Servicios → Conexión sin recompilar.
+
+### Pendiente
+
 - Vultr Object Storage para las imágenes de recibos (reto Gemini multimodal).

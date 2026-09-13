@@ -41,7 +41,7 @@
 
   // ---------- Overlay ----------
   const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
-  const overlayState = { open: false, returnFocus: null };
+  const overlayState = { open: false, returnFocus: null, mount: null };
 
   function trapFocus(e) {
     if (e.key !== 'Tab' || !overlayState.open) return;
@@ -53,7 +53,9 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
 
-  function openOverlay({ title, folderLabel, meta, spec }) {
+  // Con `surfaceId` se monta la superficie A2UI (comparte el store con el
+  // lienzo); sin él se pinta la proyección v1 de `spec.ui`.
+  function openOverlay({ title, folderLabel, meta, spec, surfaceId }) {
     const overlay = $('overlay');
     if (!overlayState.open) overlayState.returnFocus = document.activeElement;
     overlayState.open = true;
@@ -69,8 +71,14 @@
     const metaEl = $('overlayMeta');
     metaEl.textContent = meta ?? '';
     metaEl.hidden = !meta;
-
-    window.renderGeneratedUi($('overlayBody'), spec?.ui ?? []);
+    overlayState.mount?.unmount();
+    overlayState.mount = null;
+    if (surfaceId && window.A2UIWeb?.store.has(surfaceId)) {
+      $('overlayBody').replaceChildren();
+      overlayState.mount = window.A2UIWeb.mount($('overlayBody'), surfaceId);
+    } else {
+      window.renderGeneratedUi($('overlayBody'), spec?.ui ?? []);
+    }
     $('overlayClose').focus();
   }
 
@@ -85,6 +93,8 @@
       overlay.removeEventListener('animationend', done);
       overlay.hidden = true;
       overlay.classList.remove('is-closing');
+      overlayState.mount?.unmount();
+      overlayState.mount = null;
       $('overlayBody').replaceChildren();
     }, { once: true });
     overlayState.returnFocus?.focus?.();

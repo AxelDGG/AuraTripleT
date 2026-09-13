@@ -1,14 +1,26 @@
-// Cliente HTTP: salud del servicio, historial de visualizaciones (Tiger Data) y
-// stream SSE del agente.
+// Cliente HTTP: salud del servicio, portada de banca en línea, historial de
+// visualizaciones (Tiger Data) y stream SSE del agente.
+//
+// Toda petición lleva el token de la sesión, y un 401 se trata en un solo lugar:
+// se borra la sesión y se manda a la persona al login. Ninguna pantalla tiene
+// que acordarse de hacerlo.
 (function () {
   const DEFAULT_TIMEOUT_MS = 15000;
   const CHAT_TIMEOUT_MS = 180000;
+
+  const authHeaders = (extra) => window.Session?.headers(extra) ?? { ...extra };
+
+  function onUnauthorized() {
+    window.Session?.expired();
+    return new Error('Tu sesión expiró. Vuelve a iniciar sesión.');
+  }
 
   async function fetchJson(url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { ...options, signal: controller.signal });
+      const res = await fetch(url, { ...options, headers: authHeaders(options.headers), signal: controller.signal });
+      if (res.status === 401) throw onUnauthorized();
       const body = await res.json().catch(() => ({}));
       if (!res.ok || body.ok === false) throw new Error(body.error || `HTTP ${res.status}`);
       return body;
@@ -18,6 +30,12 @@
   }
 
   const fetchHealth = () => fetchJson('/api/health', {}, 8000);
+
+  // Perfil del cliente para la franja de estado del asistente.
+  const fetchCustomer = () => fetchJson('/api/customer');
+
+  // Todo lo que necesita la portada: cuentas, movimientos, alertas y favoritos.
+  const fetchOverview = () => fetchJson('/api/overview', {}, 25000);
 
   // Historial completo o filtrado. Devuelve { source, folders[], entries[] }:
   // `folders` siempre trae las cinco carpetas con su total, aunque el filtro
@@ -31,18 +49,23 @@
     return fetchJson(`/api/history${query ? `?${query}` : ''}`);
   }
 
-  // Consume el stream SSE de /api/chat y entrega cada evento a onEvent.
-  async function streamChat({ message, history, onEvent, signal }) {
+  // Consume un stream SSE del agente y entrega cada evento a onEvent.
+  //
+  // `surface` es la superficie activa ({surfaceId, title, dataModel}) para que
+  // el agente pueda responder con un patch; `client` anuncia qué componentes
+  // A2UI sabe pintar esta web (negociación de catálogo).
+  async function streamSse(path, body, { onEvent, signal }) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
     if (signal) signal.addEventListener('abort', () => controller.abort(), { once: true });
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch(path, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history }),
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
+      if (res.status === 401) throw onUnauthorized();
       if (!res.ok || !res.body) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -71,5 +94,14 @@
     }
   }
 
-  window.API = { fetchHealth, fetchHistory, streamChat };
+  const streamChat = ({ message, history, surface, client, onEvent, signal }) =>
+    streamSse('/api/chat', { message, history, surface, client }, { onEvent, signal });
+
+  // Evento tipado de la UI generada: {surfaceId, event: {name, context}, dataModel}.
+  const streamAction = ({ action, history, surface, client, onEvent, signal }) =>
+    streamSse('/api/action', { ...action, history, surface, client }, { onEvent, signal });
+
+  const fetchCatalog = () => fetchJson('/api/a2ui/catalog');
+
+  window.API = { fetchHealth, fetchCustomer, fetchOverview, fetchHistory, fetchCatalog, streamChat, streamAction };
 })();

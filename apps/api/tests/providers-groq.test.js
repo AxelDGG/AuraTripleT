@@ -108,7 +108,7 @@ test('chat lanza un error con el status ante respuestas no recuperables', async 
 });
 
 test('getLlmProvider usa groq por defecto y rechaza proveedores desconocidos', () => {
-  assert.deepEqual(availableProviders(), ['groq']);
+  assert.deepEqual(availableProviders(), ['groq', 'gemini']);
   const previous = process.env.GROQ_API_KEY;
   process.env.GROQ_API_KEY = 'k';
   try {
@@ -119,4 +119,16 @@ test('getLlmProvider usa groq por defecto y rechaza proveedores desconocidos', (
     else process.env.GROQ_API_KEY = previous;
   }
   assert.throws(() => getLlmProvider('oracle'), /LLM_PROVIDER desconocido/);
+});
+
+test('chat falla de inmediato (sin reintentar) cuando Groq pide esperar minutos: límite diario agotado', async () => {
+  const { impl, calls } = fakeFetch([
+    jsonResponse(429, 'Rate limit reached for model `m` on tokens per day (TPD): Limit 200000, Used 199624, Requested 4493. Please try again in 29m38.5s.'),
+    jsonResponse(200, { choices: [{ message: { role: 'assistant', content: 'no debería llegar' } }] }),
+  ]);
+  const waits = [];
+  const provider = createGroqProvider({ apiKey: 'k', fetchImpl: impl, sleep: async (ms) => { waits.push(ms); } });
+  await assert.rejects(() => provider.chat({ messages: [], tools: [] }), /límite diario.*~30 min/);
+  assert.equal(calls.length, 1, 'no reintenta');
+  assert.deepEqual(waits, []);
 });

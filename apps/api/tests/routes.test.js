@@ -12,8 +12,8 @@ let baseUrl;
 let lastAgentInput;
 let historyStore;
 
-async function fakeAgent({ userMessage, history, emit }) {
-  lastAgentInput = { userMessage, history };
+async function fakeAgent({ userMessage, history, emit, action, surface, client }) {
+  lastAgentInput = { userMessage, history, action, surface, client };
   emit({ type: 'status', text: 'pensando' });
   emit({ type: 'ui', message: 'ok', title: 'Prueba', folder: 'gastos', ui: [{ type: 'text', markdown: userMessage }] });
   return { message: 'ok', ui: [] };
@@ -61,13 +61,24 @@ test('respuestas llevan cabeceras de seguridad y CORS abierto para la app móvil
   assert.equal(preflight.status, 204);
 });
 
-test('GET / sirve la UI web de @norte/web', async () => {
+test('GET / sirve la portada de banca en línea de @norte/web', async () => {
   const res = await fetch(`${baseUrl}/`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /text\/html/);
   const html = await res.text();
-  assert.match(html, /<title>Banorte · Agente de visualización financiera<\/title>/);
-  assert.match(html, /id="canvas"/);
+  assert.match(html, /<title>Banorte · Banca en línea<\/title>/);
+  assert.match(html, /id="movements"/);
+});
+
+test('GET /asistente sirve la UI del agente y GET /login la pantalla de acceso', async () => {
+  const [assistant, login] = await Promise.all([
+    fetch(`${baseUrl}/asistente`).then((res) => res.text()),
+    fetch(`${baseUrl}/login`).then((res) => res.text()),
+  ]);
+  assert.match(assistant, /<title>Banorte · Agente de visualización financiera<\/title>/);
+  assert.match(assistant, /id="canvas"/);
+  assert.match(login, /<title>Banorte · Inicia sesión<\/title>/);
+  assert.match(login, /id="loginForm"/);
 });
 
 test('GET /api/dashboard agrega las 12 llamadas MCP en un solo payload', async () => {
@@ -205,4 +216,101 @@ test('createRateLimiter deja pasar hasta el máximo por ventana y luego responde
   assert.deepEqual(outcomes, ['next', 'next', 429]);
   limiter({ ip: '5.6.7.8' }, res, next);
   assert.equal(outcomes.at(-1), 'next');
+});
+
+// ---------- Norte A2UI v2 ----------
+
+test('GET /api/a2ui/catalog publica el catálogo de componentes y las renderer functions', async () => {
+  const res = await fetch(`${baseUrl}/api/a2ui/catalog`);
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.version, 'v1.0');
+  assert.match(body.catalogId, /^urn:norte:a2ui:catalog/);
+  assert.ok(body.components.some((c) => c.name === 'Slider'));
+  assert.ok(body.functions.includes('amortize'));
+});
+
+test('el núcleo A2UI se sirve como módulos ES en /a2ui/*.js', async () => {
+  const res = await fetch(`${baseUrl}/a2ui/runtime.js`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /javascript/);
+  assert.match(await res.text(), /export function createSurfaceStore/);
+});
+
+test('POST /api/chat pasa la superficie activa y las capacidades del cliente al agente', async () => {
+  const res = await postJson('/api/chat', {
+    message: '¿y a 6 meses?',
+    surface: { surfaceId: 's_1', title: 'Plan', dataModel: { plan: { months: 12 } }, components: 'no se manda' },
+    client: { platform: 'web', components: ['Kpi', 'Slider', 42] },
+  });
+  assert.equal(res.status, 200);
+  await res.text();
+  assert.deepEqual(lastAgentInput.surface, { surfaceId: 's_1', title: 'Plan', dataModel: { plan: { months: 12 } } });
+  assert.deepEqual(lastAgentInput.client, { platform: 'web', components: ['Kpi', 'Slider'] });
+  assert.equal(lastAgentInput.action, null);
+});
+
+test('POST /api/action valida el evento tipado y lo entrega al agente como [action:nombre]', async () => {
+  const bad = await postJson('/api/action', { surfaceId: 's', event: { name: 'rm -rf' } });
+  assert.equal(bad.status, 400);
+
+  const res = await postJson('/api/action', {
+    surfaceId: 's_1',
+    event: { name: 'confirm_restructure', context: { accountId: 'ACC-003', months: 12 } },
+    dataModel: { plan: { months: 12 } },
+  });
+  assert.equal(res.status, 200);
+  const events = sseEvents(await res.text());
+  assert.deepEqual(events.map((e) => e.type), ['status', 'ui', 'history', 'done']);
+  assert.equal(lastAgentInput.userMessage, '[action:confirm_restructure] {"accountId":"ACC-003","months":12}');
+  assert.equal(lastAgentInput.action.event.name, 'confirm_restructure');
+  assert.deepEqual(lastAgentInput.action.dataModel, { plan: { months: 12 } });
+});
+
+test('un patch no se archiva en el historial', async () => {
+  const store = createMemoryHistoryStore();
+  const app = createApp({
+    agent: async ({ emit }) => {
+      emit({ type: 'ui', patch: true, surfaceId: 's', updates: [{ path: '/a', value: 1 }], message: 'cambió', title: 'x', folder: 'otros', ui: [] });
+    },
+    historyStore: store,
+  });
+  const s = await new Promise((resolve) => {
+    const srv = app.listen(0, '127.0.0.1', () => resolve(srv));
+  });
+  try {
+    const res = await fetch(`http://127.0.0.1:${s.address().port}/api/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'hola' }),
+    });
+    assert.deepEqual(sseEvents(await res.text()).map((e) => e.type), ['ui', 'done']);
+    assert.equal((await store.list()).length, 0);
+  } finally {
+    await new Promise((resolve) => s.close(resolve));
+  }
+});
+
+test('la superficie generada se archiva junto con la proyección v1', async () => {
+  const store = createMemoryHistoryStore();
+  const surface = { surfaceId: 's_9', components: [{ id: 'root', component: 'Stack', children: [] }], dataModel: { a: 1 } };
+  const app = createApp({
+    agent: async ({ emit }) => {
+      emit({ type: 'ui', surfaceId: 's_9', surface, message: 'm', title: 'Con superficie', folder: 'gastos', ui: [{ type: 'text', markdown: 'm' }] });
+    },
+    historyStore: store,
+  });
+  const s = await new Promise((resolve) => {
+    const srv = app.listen(0, '127.0.0.1', () => resolve(srv));
+  });
+  try {
+    await fetch(`http://127.0.0.1:${s.address().port}/api/chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: 'hola' }),
+    }).then((r) => r.text());
+    const [entry] = await store.list();
+    assert.deepEqual(entry.spec.surface, surface);
+    assert.equal(entry.spec.ui[0].type, 'text');
+    const listed = await (await fetch(`http://127.0.0.1:${s.address().port}/api/history`)).json();
+    assert.equal(listed.entries[0].spec.surface.surfaceId, 's_9', 'una entrada con superficie no se vuelve a elevar');
+  } finally {
+    await new Promise((resolve) => s.close(resolve));
+  }
 });

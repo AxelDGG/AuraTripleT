@@ -1,0 +1,184 @@
+/* ===== Pantalla de acceso =====
+   Dos paneles dentro de una sola tarjeta: el rojo cuenta la marca, el blanco
+   pide usuario y contraseña. Se apoya en portal.css para la barra superior,
+   los botones y los toasts. */
+
+.auth {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 40px 24px 56px;
+}
+
+.auth-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  width: min(1020px, 100%);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+/* ---------- Panel rojo ---------- */
+.auth-pitch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 40px 38px;
+  background: linear-gradient(140deg, var(--red) 0%, var(--red-700) 62%, var(--red-800) 100%);
+  color: #fff;
+  overflow: hidden;
+}
+/* El salto de línea del título viene del texto, no de un <br>: i18n escribe
+   textContent y un <br> se perdería al aplicar el diccionario. */
+.auth-pitch-title {
+  white-space: pre-line;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+}
+.auth-pitch-copy {
+  margin-top: 14px;
+  max-width: 30ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  opacity: 0.9;
+}
+
+/* Ilustración: una credencial de vidrio con un candado encima. Es CSS y no una
+   imagen para que escale con la tarjeta y no pese nada. */
+.auth-art { position: relative; flex: 1; min-height: 190px; margin-top: 26px; }
+.art-card {
+  position: absolute;
+  left: 6%; bottom: 8%;
+  width: 62%;
+  aspect-ratio: 1.45;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 22px 50px -24px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  transform: rotate(-7deg);
+}
+.art-avatar {
+  display: block;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.62);
+}
+.art-line {
+  display: block;
+  height: 7px;
+  margin-top: 12px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.5);
+}
+.art-line.short { width: 58%; margin-top: 8px; }
+.art-lock {
+  position: absolute;
+  right: 8%; bottom: 4%;
+  display: grid;
+  place-items: center;
+  width: 88px; height: 88px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--red-600);
+  box-shadow: 0 22px 44px -18px rgba(0, 0, 0, 0.55);
+  transform: rotate(6deg);
+}
+.art-lock svg { width: 40px; height: 40px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Panel del formulario ---------- */
+.auth-form-pane { padding: 40px 44px; display: flex; flex-direction: column; }
+.auth-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.auth-sub { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.auth-form-pane form { margin-top: 22px; }
+
+.field-label { display: block; margin-bottom: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.field-label + .field { margin-bottom: 16px; }
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.field:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(235, 0, 41, 0.14); }
+.field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  font-size: 14px;
+}
+.field input::placeholder { color: var(--muted-2); }
+.field input:disabled { color: var(--muted); }
+.field-icon svg, .field-reveal svg {
+  width: 18px; height: 18px;
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.field-icon { color: var(--muted-2); display: grid; place-items: center; flex: none; }
+.field-reveal { color: var(--muted); display: grid; place-items: center; flex: none; border-radius: var(--r-sm); }
+.field-reveal:hover { color: var(--red-600); }
+
+.auth-error {
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  background: var(--red-tint);
+  border: 1px solid var(--red-tint-2);
+  color: var(--red-700);
+  font-size: 12.5px;
+  font-weight: 600;
+  animation: rise var(--dur-fast) var(--ease-out) both;
+}
+
+.auth-link {
+  align-self: center;
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--red-600);
+}
+.auth-link:hover { color: var(--red-700); text-decoration: underline; }
+
+/* Separador con el circulito del mockup. */
+.auth-divider { position: relative; margin: 20px 0 16px; height: 1px; background: var(--line); }
+.auth-divider span {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  transform: translate(-50%, -50%);
+}
+
+.auth-demo {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted-2);
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Pantallas angostas ---------- */
+@media (max-width: 860px) {
+  .auth { padding: 22px 14px 36px; }
+  .auth-card { grid-template-columns: minmax(0, 1fr); }
+  /* Primero el formulario: en el teléfono, entrar pesa más que el discurso. */
+  .auth-pitch { order: 2; padding: 28px; }
+  .auth-art { min-height: 150px; }
+  .auth-form-pane { order: 1; padding: 30px 24px; }
+  .auth-pitch-title { font-size: 24px; }
+}

@@ -258,3 +258,48 @@ test('cada transferencia recibe un folio distinto aunque ocurran en el mismo mil
   assert.notEqual(a.folio, b.folio);
   assert.notEqual(a.transactionId, b.transactionId);
 });
+
+// ---------- Reestructura de tarjeta ----------
+
+test('getCardRestructureOptions calcula un plan por plazo con ahorro contra la tasa de la tarjeta', async () => {
+  const { tools } = freshTools();
+  const options = await tools.getCardRestructureOptions();
+  assert.equal(options.accountId, 'ACC-003');
+  assert.equal(options.balance, 23410.5);
+  assert.equal(options.currentRate, 45.9);
+  assert.equal(options.annualRate, 26.9);
+  assert.deepEqual(options.options.map((o) => o.months), [6, 12, 18, 24, 36]);
+  const twelve = options.options.find((o) => o.months === 12);
+  // Misma fórmula que la renderer function `amortize` del cliente.
+  const rate = 26.9 / 100 / 12;
+  assert.equal(twelve.monthlyPayment, round2((23410.5 * rate) / (1 - Math.pow(1 + rate, -12))));
+  assert.ok(twelve.savings > 0, 'la tasa preferente ahorra intereses');
+  assert.ok(twelve.totalInterest < twelve.interestAtCardRate);
+  assert.match((await tools.getCardRestructureOptions({ accountId: 'ACC-001' })).error, /no es una tarjeta/);
+  assert.match((await tools.getCardRestructureOptions({ accountId: 'ACC-999' })).error, /no encontrada/);
+});
+
+test('restructureCardDebt exige confirmación del servidor y un plazo del catálogo', async () => {
+  const { tools } = freshTools();
+  assert.match((await tools.restructureCardDebt({ months: 12 })).error, /confirmación/);
+  assert.match((await tools.restructureCardDebt({ months: 12, confirmed: 'true' })).error, /confirmación/);
+  assert.match((await tools.restructureCardDebt({ months: 13, confirmed: true })).error, /plazo/i);
+});
+
+test('restructureCardDebt aplica el plan: la tarjeta queda con la mensualidad y la tasa del plan', async () => {
+  const { tools, repo } = freshTools();
+  const result = await tools.restructureCardDebt({ accountId: 'ACC-003', months: 12, confirmed: true });
+  assert.equal(result.success, true);
+  assert.match(result.folio, /^REST-\d{6}-12$/);
+  assert.equal(result.annualRate, 26.9);
+  assert.equal(result.previousRate, 45.9);
+  assert.ok(result.monthlyPayment > 0);
+  assert.equal(result.firstPaymentDate, '2026-09-15');
+
+  const card = await repo.findAccount('ACC-003');
+  assert.equal(card.minimumPayment, result.monthlyPayment);
+  assert.equal(card.interestRate, 26.9);
+  assert.equal(card.plan.months, 12);
+  assert.equal(card.balance, -23410.5, 'el saldo sigue siendo deuda; solo cambia cómo se paga');
+  assert.equal((await tools.getCardRestructureOptions()).existingPlan.folio, result.folio);
+});
