@@ -2,9 +2,11 @@
 //
 // Un Button o un Form emiten `{event: {name, context}}`. Aquí vive la lista de
 // los eventos que el servidor reconoce y, sobre todo, cuáles AUTORIZAN una
-// herramienta con dinero de por medio: `transfer_funds` y
-// `restructure_card_debt` solo se ejecutan con `confirmed: true`, y ese valor
-// lo fija este archivo, nunca el modelo.
+// herramienta con un efecto real: mover dinero (`transfer_funds`,
+// `restructure_card_debt`) o escribir en el calendario de la persona
+// (`create_calendar_event`, `schedule_card_payments`, `update_calendar_event`,
+// `delete_calendar_event`). Todas ellas solo se ejecutan con `confirmed: true`,
+// y ese valor lo fija este archivo, nunca el modelo.
 //
 // Un evento que no está en la lista no es un error: llega al agente como
 // contexto (el modelo inventa nombres de acción para sus formularios), pero no
@@ -34,6 +36,36 @@ const RestructureContext = z
   })
   .passthrough();
 
+// Fecha del calendario: "2026-09-15" o un ISO 8601 con hora.
+const calendarDate = z.string().regex(/^\d{4}-\d{2}-\d{2}([T ].*)?$/, 'fecha inválida');
+
+// Pago personalizado que la persona agenda desde la interfaz (Calendar/DatePicker).
+const ScheduleEventContext = z
+  .object({
+    summary: z.string().min(1).max(200),
+    start: calendarDate,
+    end: calendarDate.optional(),
+    description: z.string().max(500).optional(),
+    calendarId: z.string().max(120).optional(),
+  })
+  .passthrough();
+
+// Agendado automático de las fechas de pago de las tarjetas.
+const ScheduleCardPaymentsContext = z
+  .object({
+    accountId: id.optional(),
+    daysBefore: z.union([z.number(), z.string()]).pipe(z.coerce.number().int().min(0).max(30)).optional(),
+    calendarId: z.string().max(120).optional(),
+  })
+  .passthrough();
+
+const CalendarEventRefContext = z
+  .object({
+    eventId: z.string().min(1).max(1024),
+    calendarId: z.string().max(120).optional(),
+  })
+  .passthrough();
+
 export const ACTION_EVENTS = {
   // Transferencia SPEI: el Form v1 usa action "transfer_funds" y los Button v2
   // pueden usar "confirm_transfer"; los dos autorizan la misma herramienta.
@@ -44,6 +76,15 @@ export const ACTION_EVENTS = {
   restructure_card_debt: { tool: 'restructure_card_debt', confirms: true, schema: RestructureContext },
   // Simulaciones: no mueven dinero, no requieren confirmación.
   simulate_credit: { tool: 'simulate_credit', confirms: false },
+  // Google Calendar: escribir en la agenda de la persona también es un efecto
+  // secundario, así que pasa por la misma reja que el dinero. Leer (listar
+  // eventos, ver disponibilidad, get_card_payment_schedule) no requiere nada.
+  confirm_schedule_payment: { tool: 'create_calendar_event', confirms: true, schema: ScheduleEventContext },
+  create_calendar_event: { tool: 'create_calendar_event', confirms: true, schema: ScheduleEventContext },
+  confirm_schedule_card_payments: { tool: 'schedule_card_payments', confirms: true, schema: ScheduleCardPaymentsContext },
+  schedule_card_payments: { tool: 'schedule_card_payments', confirms: true, schema: ScheduleCardPaymentsContext },
+  confirm_reschedule_payment: { tool: 'update_calendar_event', confirms: true, schema: CalendarEventRefContext },
+  confirm_cancel_payment: { tool: 'delete_calendar_event', confirms: true, schema: CalendarEventRefContext },
 };
 
 // Herramientas que reciben `confirmed` y que el modelo no puede autorizar solo.

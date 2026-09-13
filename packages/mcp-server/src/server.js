@@ -20,7 +20,9 @@ dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '..', 
 // Fuente de datos según BANK_DATA_SOURCE (memory por defecto); cada proceso
 // del servidor tiene su propio estado.
 const tools = createBankingTools(createRepository());
-const calendarTools = createCalendarTools();
+// El agendado de pagos cruza los dos mundos: lee las tarjetas del repositorio
+// bancario y escribe en el calendario de la persona.
+const calendarTools = createCalendarTools({ bankingTools: tools });
 
 const server = new McpServer({ name: 'banorte-banking', version: '1.0.0' });
 
@@ -182,7 +184,7 @@ server.tool(
 
 server.tool(
   'create_calendar_event',
-  'Crea un evento en Google Calendar, por ejemplo para agendar una cita con un asesor Banorte. start/end en ISO 8601 (ej. 2026-03-05T10:00:00-06:00) o YYYY-MM-DD para todo el día.',
+  'Crea un evento en Google Calendar: un pago personalizado, una cita con un asesor o un recordatorio. start/end en ISO 8601 (ej. 2026-03-05T10:00:00-06:00) o YYYY-MM-DD para todo el día. Requiere confirmación previa del usuario.',
   {
     calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
     summary: z.string().describe('Título del evento'),
@@ -192,8 +194,31 @@ server.tool(
     end: z.string().describe('Fin en ISO 8601 o YYYY-MM-DD'),
     timeZone: z.string().nullish().describe('Default America/Mexico_City'),
     attendees: z.array(z.string()).nullish().describe('Correos de invitados'),
+    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.createEvent(args)),
+);
+
+server.tool(
+  'get_card_payment_schedule',
+  'Próximas fechas de pago de las tarjetas de crédito del cliente y si ya tienen recordatorio en Google Calendar. Solo lectura: úsala para armar la interfaz antes de agendar nada.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    daysBefore: z.number().nullish().describe('Días de anticipación del recordatorio (default 1)'),
+  },
+  async (args) => jsonResult(await calendarTools.getCardPaymentSchedule(args)),
+);
+
+server.tool(
+  'schedule_card_payments',
+  'Agenda en Google Calendar los recordatorios de pago de las tarjetas de crédito (uno por tarjeta, antes de su fecha límite). No duplica: si la tarjeta ya tiene recordatorio lo respeta. Requiere confirmación previa del usuario.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    accountId: z.string().nullish().describe('Limitar a una tarjeta, ej. ACC-003. Sin esto agenda todas'),
+    daysBefore: z.number().nullish().describe('Días de anticipación del recordatorio (default 1)'),
+    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
+  },
+  async (args) => jsonResult(await calendarTools.scheduleCardPayments(args)),
 );
 
 server.tool(
@@ -208,16 +233,18 @@ server.tool(
     start: z.string().nullish().describe('ISO 8601 o YYYY-MM-DD'),
     end: z.string().nullish().describe('ISO 8601 o YYYY-MM-DD'),
     timeZone: z.string().nullish(),
+    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.updateEvent(args)),
 );
 
 server.tool(
   'delete_calendar_event',
-  'Elimina un evento de Google Calendar por su ID.',
+  'Elimina un evento de Google Calendar por su ID. Requiere confirmación previa del usuario.',
   {
     calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
     eventId: z.string().describe('ID del evento a eliminar'),
+    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.deleteEvent(args)),
 );

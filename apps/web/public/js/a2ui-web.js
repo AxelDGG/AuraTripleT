@@ -72,6 +72,141 @@ function options(list) {
   return list.map((o) => (isObject(o) ? { value: o.value, label: asText(o.label ?? o.value) } : { value: o, label: asText(o) }));
 }
 
+// ---------- fechas ----------
+//
+// Las fechas "YYYY-MM-DD" se parsean a mano a propósito: new Date("2026-09-15")
+// se interpreta en UTC y en México se corre un día hacia atrás.
+
+const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const EVENT_KINDS = ['payment', 'due', 'personal', 'info'];
+
+function parseISODate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(asText(value));
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toISODate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+// "2026-09" o "2026-09-15" → primer día de ese mes.
+function parseMonth(value) {
+  const match = /^(\d{4})-(\d{2})/.exec(asText(value));
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, 1);
+}
+
+// Semanas de lunes a domingo que cubren el mes, incluyendo los días de relleno.
+function monthMatrix(monthStart) {
+  const first = startOfMonth(monthStart);
+  const offset = (first.getDay() + 6) % 7; // getDay: 0=domingo → semana que arranca en lunes
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const date = new Date(first.getFullYear(), first.getMonth(), 1 - offset + i);
+    cells.push({ date, iso: toISODate(date), inMonth: date.getMonth() === first.getMonth() });
+  }
+  // La sexta semana solo se dibuja si el mes de verdad llega hasta ahí.
+  return cells.slice(0, cells[35].inMonth ? 42 : 35);
+}
+
+function eventsByDate(list) {
+  const map = new Map();
+  for (const item of Array.isArray(list) ? list.filter(isObject) : []) {
+    const iso = toISODate(parseISODate(item.date));
+    if (!iso) continue;
+    if (!map.has(iso)) map.set(iso, []);
+    map.get(iso).push(item);
+  }
+  return map;
+}
+
+const eventKind = (item) => (EVENT_KINDS.includes(item?.kind) ? item.kind : 'info');
+
+// Estados frecuentes de un pago/cita → color del badge. Lo que no reconoce se
+// pinta neutro: el modelo escribe la etiqueta que quiera y nunca queda rota.
+const BADGE_TONES = {
+  ok: ['pagado', 'pagada', 'programado', 'programada', 'agendado', 'agendada', 'activo', 'activa', 'ok', 'success', 'completado', 'liquidado', 'al corriente'],
+  warn: ['pendiente', 'por pagar', 'proximo', 'próximo', 'en riesgo', 'warning', 'parcial'],
+  danger: ['vencido', 'vencida', 'atrasado', 'atrasada', 'rechazado', 'error', 'cancelado', 'cancelada'],
+};
+
+const deaccent = (v) => asText(v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+function badgeTone(value) {
+  const text = deaccent(value);
+  for (const [tone, words] of Object.entries(BADGE_TONES)) {
+    if (words.some((w) => text.includes(deaccent(w)))) return tone;
+  }
+  return 'neutral';
+}
+
+// Celda de DataTable según el "format" de su columna.
+function formatCell(value, format) {
+  if (format === 'badge') return el('span', `dt-badge is-${badgeTone(value)}`, asText(value));
+  if (format === 'currency') return document.createTextNode(typeof value === 'number' ? formatCurrency(value) : asText(value));
+  if (format === 'date') return document.createTextNode(parseISODate(value) ? formatDate(value) : asText(value));
+  if (format === 'percent') return document.createTextNode(Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)}%` : asText(value));
+  if (format === 'number') return document.createTextNode(Number.isFinite(Number(value)) ? Number(value).toLocaleString('es-MX') : asText(value));
+  return document.createTextNode(moneyOrText(value));
+}
+
+// Rejilla de un mes, compartida por Calendar y DatePicker. `onPick` la vuelve
+// seleccionable; sin él es solo lectura. El mes visible es estado local de UI.
+function monthGrid({ monthStart, selectedIso, events, min, max, onPick, onMonth }) {
+  const wrap = el('div', 'a2-cal');
+  const head = el('div', 'a2-cal-head');
+  const prev = el('button', 'a2-cal-nav', '‹');
+  prev.type = 'button';
+  prev.setAttribute('aria-label', 'Mes anterior');
+  prev.addEventListener('click', () => onMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() - 1, 1)));
+  const next = el('button', 'a2-cal-nav', '›');
+  next.type = 'button';
+  next.setAttribute('aria-label', 'Mes siguiente');
+  next.addEventListener('click', () => onMonth(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1)));
+  head.append(prev, el('div', 'a2-cal-month', `${MONTH_NAMES[monthStart.getMonth()]} ${monthStart.getFullYear()}`), next);
+
+  const week = el('div', 'a2-cal-week');
+  for (const day of WEEKDAY_LABELS) week.append(el('span', null, day));
+
+  const grid = el('div', 'a2-cal-grid');
+  const todayIso = toISODate(new Date());
+  const minDate = parseISODate(min);
+  const maxDate = parseISODate(max);
+  for (const cell of monthMatrix(monthStart)) {
+    const dayEvents = events.get(cell.iso) ?? [];
+    const disabled = (minDate && cell.date < minDate) || (maxDate && cell.date > maxDate);
+    const classes = ['a2-cal-day'];
+    if (!cell.inMonth) classes.push('is-outside');
+    if (cell.iso === todayIso) classes.push('is-today');
+    if (selectedIso && cell.iso === selectedIso) classes.push('is-selected');
+    if (disabled) classes.push('is-disabled');
+    const day = el(onPick && !disabled ? 'button' : 'div', classes.join(' '));
+    if (onPick && !disabled) {
+      day.type = 'button';
+      day.addEventListener('click', () => onPick(cell.iso));
+    }
+    day.append(el('span', 'a2-cal-num', cell.date.getDate()));
+    if (dayEvents.length) {
+      const dots = el('span', 'a2-cal-dots');
+      for (const item of dayEvents.slice(0, 3)) dots.append(el('span', `a2-cal-dot is-${eventKind(item)}`));
+      day.append(dots);
+      day.title = dayEvents.map((e) => asText(e.label)).filter(Boolean).join(' · ');
+    }
+    grid.append(day);
+  }
+  wrap.append(head, week, grid);
+  return wrap;
+}
+
 // ---------- registro de componentes ----------
 //
 // Cada función recibe (props resueltas, ctx) y devuelve un nodo. `ctx` trae:
@@ -272,6 +407,126 @@ const COMPONENTS = {
     }
     return card;
   },
+  DataTable(props, ctx) {
+    const card = el('div', 'card c-datatable gen');
+    if (props.title) card.append(el('h3', null, props.title));
+    if (props.subtitle) card.append(el('p', 'ch-sub', props.subtitle));
+
+    const columns = (Array.isArray(props.columns) ? props.columns : []).map((c, i) =>
+      (isObject(c) ? { key: asText(c.key ?? c.field ?? i), label: asText(c.label ?? c.key ?? c.field ?? ''), format: c.format, align: c.align } : { key: asText(c), label: asText(c), format: undefined, align: undefined }));
+    const rows = (Array.isArray(props.rows) ? props.rows : []).map((r) =>
+      (isObject(r) ? r : Object.fromEntries(columns.map((c, i) => [c.key, Array.isArray(r) ? r[i] : r]))));
+    if (!columns.length || !rows.length) {
+      card.append(el('p', 'a2-empty', props.emptyText ?? 'Sin datos que mostrar.'));
+      return card;
+    }
+
+    const sort = ctx.ui.sort ?? null;
+    const sorted = sort ? [...rows].sort((a, b) => {
+      const x = a[sort.key];
+      const y = b[sort.key];
+      const numeric = typeof x === 'number' && typeof y === 'number';
+      const cmp = numeric ? x - y : asText(x).localeCompare(asText(y), 'es', { numeric: true });
+      return sort.dir === 'desc' ? -cmp : cmp;
+    }) : rows;
+
+    const pageSize = Number(props.pageSize) > 0 ? Math.floor(Number(props.pageSize)) : 0;
+    const pages = pageSize ? Math.ceil(sorted.length / pageSize) : 1;
+    const page = Math.min(ctx.ui.page ?? 0, pages - 1);
+    const visible = pageSize ? sorted.slice(page * pageSize, page * pageSize + pageSize) : sorted;
+
+    const table = el('table');
+    const headRow = el('tr');
+    for (const col of columns) {
+      const th = el('th', col.align === 'right' ? 'is-right' : null);
+      const button = el('button', `dt-sort${sort?.key === col.key ? ` is-active is-${sort.dir}` : ''}`, col.label);
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        ctx.ui.sort = sort?.key === col.key && sort.dir === 'asc' ? { key: col.key, dir: 'desc' } : { key: col.key, dir: 'asc' };
+        ctx.ui.page = 0;
+        ctx.rerender();
+      });
+      th.append(button);
+      headRow.append(th);
+    }
+    const thead = el('thead');
+    thead.append(headRow);
+
+    const tbody = el('tbody');
+    for (const row of visible) {
+      const tr = el('tr');
+      for (const col of columns) {
+        const td = el('td', col.align === 'right' ? 'is-right' : null);
+        td.append(formatCell(row[col.key], col.format));
+        tr.append(td);
+      }
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    card.append(table);
+
+    if (pages > 1) {
+      const footer = el('div', 'dt-foot');
+      const prev = el('button', 'dt-page', 'Anterior');
+      prev.type = 'button';
+      prev.disabled = page === 0;
+      prev.addEventListener('click', () => { ctx.ui.page = page - 1; ctx.rerender(); });
+      const next = el('button', 'dt-page', 'Siguiente');
+      next.type = 'button';
+      next.disabled = page >= pages - 1;
+      next.addEventListener('click', () => { ctx.ui.page = page + 1; ctx.rerender(); });
+      footer.append(prev, el('span', 'dt-count', `${page + 1} de ${pages} · ${sorted.length} filas`), next);
+      card.append(footer);
+    }
+    if (props.caption) card.append(el('div', 'p-cap', props.caption));
+    return card;
+  },
+  Calendar(props, ctx) {
+    const card = el('div', 'card c-calendar gen');
+    if (props.title) card.append(el('h3', null, props.title));
+    const path = boundPath(ctx.raw, ctx.scope);
+    const events = eventsByDate(props.events);
+    const selectedIso = toISODate(parseISODate(props.value ?? props.selected));
+    const monthStart = ctx.ui.month
+      ?? parseMonth(props.month)
+      ?? parseMonth(selectedIso)
+      ?? startOfMonth(new Date());
+
+    card.append(monthGrid({
+      monthStart,
+      selectedIso,
+      events,
+      min: props.min,
+      max: props.max,
+      onMonth: (next) => { ctx.ui.month = next; ctx.rerender(); },
+      onPick: path ? (iso) => { ctx.ui.month = parseMonth(iso); ctx.setData(path, iso, { rerenderSelf: true }); } : null,
+    }));
+
+    // Los eventos del día elegido (o del mes visible si no hay ninguno elegido).
+    const listed = selectedIso && events.has(selectedIso)
+      ? events.get(selectedIso).map((e) => ({ ...e, date: selectedIso }))
+      : [...events.entries()]
+        .filter(([iso]) => iso.slice(0, 7) === toISODate(monthStart).slice(0, 7))
+        .flatMap(([iso, items]) => items.map((e) => ({ ...e, date: iso })))
+        .sort((a, b) => a.date.localeCompare(b.date));
+    if (listed.length) {
+      const list = el('div', 'cal-events');
+      for (const item of listed.slice(0, 6)) {
+        const row = el('div', 'cal-event');
+        row.append(el('span', `a2-cal-dot is-${eventKind(item)}`));
+        const main = el('div', 'cal-event-main');
+        main.append(el('div', 'cal-event-label', asText(item.label ?? item.summary ?? 'Evento')));
+        main.append(el('div', 'cal-event-date', formatDate(item.date)));
+        row.append(main);
+        if (item.amount !== undefined && item.amount !== null) row.append(el('div', 'cal-event-amt', moneyOrText(item.amount)));
+        list.append(row);
+      }
+      card.append(list);
+    } else if (props.emptyText) {
+      card.append(el('p', 'a2-empty', props.emptyText));
+    }
+    return card;
+  },
   Alert(props) {
     const level = ['info', 'success', 'warning', 'error'].includes(props.level) ? props.level : 'info';
     const wrap = el('div', `c-alert ${level} gen`);
@@ -392,6 +647,43 @@ const COMPONENTS = {
       ctx.setData(path, numeric ? (input.value === '' ? '' : Number(input.value)) : input.value);
     });
     field.append(input);
+    return field;
+  },
+  DatePicker(props, ctx) {
+    const path = boundPath(ctx.raw, ctx.scope);
+    const field = el('div', 'f-field gen a2-control a2-datepicker');
+    if (props.label) field.append(el('label', null, asText(props.label)));
+    const selectedIso = toISODate(parseISODate(props.value));
+
+    const trigger = el('button', `a2-date-trigger${selectedIso ? ' has-value' : ''}`);
+    trigger.type = 'button';
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    trigger.setAttribute('aria-expanded', String(Boolean(ctx.ui.open)));
+    trigger.append(el('span', 'a2-date-icon', '📅'));
+    trigger.append(el('span', null, selectedIso ? formatDate(selectedIso) : asText(props.placeholder ?? 'Elegir fecha')));
+    trigger.addEventListener('click', () => { ctx.ui.open = !ctx.ui.open; ctx.rerender(); });
+    field.append(trigger);
+
+    if (ctx.ui.open) {
+      const pop = el('div', 'a2-date-pop');
+      pop.setAttribute('role', 'dialog');
+      pop.append(monthGrid({
+        monthStart: ctx.ui.month ?? parseMonth(selectedIso) ?? parseMonth(props.month) ?? startOfMonth(new Date()),
+        selectedIso,
+        events: eventsByDate(props.events),
+        min: props.min,
+        max: props.max,
+        onMonth: (next) => { ctx.ui.month = next; ctx.rerender(); },
+        onPick: (iso) => {
+          ctx.ui.open = false;
+          ctx.ui.month = parseMonth(iso);
+          if (path) ctx.setData(path, iso, { rerenderSelf: true });
+          else ctx.rerender();
+        },
+      }));
+      field.append(pop);
+    }
+    if (props.hint) field.append(el('div', 'p-cap', props.hint));
     return field;
   },
   Toggle(props, ctx) {

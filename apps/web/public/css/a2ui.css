@@ -157,3 +157,171 @@
 .canvas.is-busy .a2-btn, .canvas.is-busy .f-submit { pointer-events: none; }
 .canvas-status { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .canvas-status .spinner { width: 12px; height: 12px; }
+
+/* ---------- DataTable ---------- */
+.c-datatable.gen { overflow-x: auto; }
+.c-datatable table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.c-datatable th { text-align: left; padding: 0; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+.c-datatable th.is-right, .c-datatable td.is-right { text-align: right; }
+.dt-sort {
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast);
+}
+.dt-sort:hover { color: var(--ink-2); }
+.dt-sort.is-active { color: var(--red); }
+.dt-sort.is-active.is-asc::after { content: ' ↑'; }
+.dt-sort.is-active.is-desc::after { content: ' ↓'; }
+.c-datatable td { padding: 9px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.c-datatable tbody tr { transition: background var(--dur-fast); }
+.c-datatable tbody tr:hover { background: var(--red-tint); }
+.dt-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--surface-3);
+  color: var(--ink-2);
+}
+.dt-badge.is-ok { background: rgba(15, 143, 77, 0.12); color: var(--green); }
+.dt-badge.is-warn { background: rgba(184, 119, 10, 0.14); color: var(--amber); }
+.dt-badge.is-danger { background: var(--red-tint-2); color: var(--red-700); }
+.dt-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.dt-count { font-size: 11.5px; color: var(--muted); }
+.dt-page {
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.dt-page:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- Calendar / DatePicker ---------- */
+/* La rejilla se queda compacta (estirada a todo el lienzo deja de leerse como
+   calendario) y los detalles ocupan el resto del ancho. El flex-basis de
+   .cal-events hace de punto de quiebre solo: si no le quedan 260px al lado del
+   calendario, baja y se apilan. */
+.c-calendar.gen { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 22px; }
+.c-calendar.gen > h3 { flex: 1 0 100%; }
+.a2-cal { display: grid; gap: 6px; flex: 0 0 auto; width: 320px; max-width: 100%; }
+/* Sin detalles que mostrar, el calendario se centra en vez de dejar el hueco. */
+.c-calendar.gen:not(:has(.cal-events)) .a2-cal { margin-inline: auto; }
+.a2-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.a2-cal-month { font-size: 13.5px; font-weight: 800; text-transform: capitalize; }
+.a2-cal-nav {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.a2-cal-nav:hover { background: var(--surface-2); border-color: var(--line-2); }
+.a2-cal-week, .a2-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.a2-cal-week span { text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; color: var(--muted-2); text-transform: uppercase; }
+.a2-cal-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 38px;
+  padding: 4px 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+button.a2-cal-day { cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast); }
+button.a2-cal-day:hover { background: var(--surface-2); border-color: var(--line-2); }
+.a2-cal-day.is-outside { color: var(--muted-2); opacity: 0.55; }
+.a2-cal-day.is-today { border-color: var(--line-2); font-weight: 800; }
+.a2-cal-day.is-selected { background: linear-gradient(140deg, var(--red) 0%, var(--red-600) 100%); color: #fff; border-color: transparent; font-weight: 800; }
+.a2-cal-day.is-selected .a2-cal-dot { outline: 1px solid rgba(255, 255, 255, 0.7); }
+.a2-cal-day.is-disabled { opacity: 0.3; }
+.a2-cal-dots { display: flex; gap: 2px; }
+.a2-cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted-2); }
+.a2-cal-dot.is-payment { background: var(--red); }
+.a2-cal-dot.is-due { background: var(--amber); }
+.a2-cal-dot.is-personal { background: var(--blue); }
+.a2-cal-dot.is-info { background: var(--muted-2); }
+/* Panel de detalles: es lo que la persona vino a leer (cuándo y cuánto paga),
+   así que ocupa el ancho sobrante y pesa visualmente más que la rejilla. */
+.cal-events {
+  flex: 1 1 260px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--red-tint);
+}
+.cal-event { display: flex; align-items: center; gap: 10px; }
+.cal-event + .cal-event { padding-top: 10px; border-top: 1px solid var(--red-tint-2); }
+.cal-events .a2-cal-dot { width: 7px; height: 7px; flex: 0 0 auto; }
+.cal-event-main { flex: 1; min-width: 0; }
+.cal-event-label { font-size: 15px; font-weight: 800; line-height: 1.25; color: var(--red); letter-spacing: -0.01em; }
+.cal-event-date { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: capitalize; }
+.cal-event-amt { font-size: 15px; font-weight: 800; color: var(--red-700); font-variant-numeric: tabular-nums; }
+
+/* El z-index va en el campo, no solo en el popover: cada componente generado
+   trae la animación `rise` con fill-mode both, así que su transform final deja
+   un contexto de apilamiento y un z-index interno nunca pasaría por encima de
+   las tarjetas que vienen después. */
+.a2-datepicker { position: relative; z-index: 30; }
+.a2-date-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.a2-date-trigger.has-value { color: var(--ink); font-weight: 600; }
+.a2-date-trigger:hover { border-color: var(--red); }
+.a2-date-icon { font-size: 14px; }
+.a2-date-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 268px;
+  padding: 12px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  animation: pop var(--dur-fast) var(--ease-spring) both;
+}
