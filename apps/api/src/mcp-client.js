@@ -11,6 +11,7 @@ async function connect() {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER_PATH],
+    env: { ...process.env },
     stderr: 'inherit',
   });
   const client = new Client({ name: 'banorte-agent', version: '1.0.0' });
