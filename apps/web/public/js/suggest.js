@@ -4,6 +4,10 @@
 //
 // `folder` es a qué carpeta suele ir a parar esa visualización: se muestra como
 // chip para que se entienda de entrada cómo se archiva lo que se genera.
+//
+// La fila no es solo de gráficas: van mezcladas las pantallas de calendario,
+// tabla y formulario que el agente también sabe armar, y van interpoladas a
+// propósito para que las primeras tarjetas visibles ya muestren esa variedad.
 (function () {
   const $ = (id) => document.getElementById(id);
   const { el } = window.UI;
@@ -11,13 +15,22 @@
   const SUGGESTIONS = [
     { id: 'reestructura', icon: 'chartDebt', folder: 'promociones' },
     { id: 'gastos', icon: 'chartBar', folder: 'gastos' },
+    { id: 'agenda', icon: 'chartCalendar', folder: 'transacciones' },
+    { id: 'tendencia', icon: 'chartTrend', folder: 'gastos' },
     { id: 'ganancias', icon: 'chartLine', folder: 'movimientos' },
+    { id: 'movimientos', icon: 'chartTable', folder: 'movimientos' },
     { id: 'flujo', icon: 'chartArea', folder: 'movimientos' },
+    { id: 'transferir', icon: 'chartForm', folder: 'transacciones' },
     { id: 'reparto', icon: 'chartPie', folder: 'movimientos' },
+    { id: 'suscripciones', icon: 'chartRepeat', folder: 'gastos' },
     { id: 'comparativo', icon: 'chartStack', folder: 'gastos' },
+    { id: 'semana', icon: 'chartAgenda', folder: 'otros' },
     { id: 'saldos', icon: 'chartKpi', folder: 'movimientos' },
+    { id: 'inversiones', icon: 'chartRing', folder: 'otros' },
     { id: 'tarjeta', icon: 'chartProgress', folder: 'movimientos' },
+    { id: 'recordatorio', icon: 'chartDate', folder: 'transacciones' },
     { id: 'credito', icon: 'chartAmort', folder: 'promociones' },
+    { id: 'mercado', icon: 'chartSpark', folder: 'otros' },
     { id: 'fx', icon: 'chartFx', folder: 'otros' },
   ];
 

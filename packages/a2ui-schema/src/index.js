@@ -7,12 +7,9 @@ import { DEFAULT_FOLDER, normalizeFolder } from './folders.js';
 
 export {
   CHART_GUIDE,
-  COMPONENT_CATALOG,
-  COMPONENT_TYPES,
+  CHART_TYPE_IDS,
   SPEC_VERSION,
-  chartsPromptSection,
   chartsPromptSectionCompact,
-  componentsPromptSection,
 } from './catalog.js';
 export {
   DEFAULT_FOLDER,
@@ -26,6 +23,7 @@ export {
   ACCOUNT_KINDS,
   ALERT_LEVELS,
   CHART_TYPES,
+  COMPONENT_TYPES,
   INPUT_TYPES,
   TRENDS,
   componentSchemas,

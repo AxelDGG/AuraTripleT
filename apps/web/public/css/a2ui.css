@@ -155,6 +155,8 @@
 .a2-skeleton.is-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .a2-skeleton.is-plan .skeleton { height: 78px; }
 .a2-skeleton.is-plan .skeleton:last-child { grid-column: 1 / -1; height: 180px; border-radius: var(--r-lg); }
+.a2-skeleton.is-calendar .skeleton:first-child { height: 230px; border-radius: var(--r-lg); }
+.a2-skeleton.is-calendar .skeleton:last-child { height: 44px; }
 .a2-skeleton.is-text .skeleton { height: 14px; }
 .a2-skeleton.is-text .skeleton:last-child { width: 72%; }
 

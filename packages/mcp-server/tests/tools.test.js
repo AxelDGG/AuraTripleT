@@ -366,3 +366,56 @@ test('getSpendingTrend filtra por categoría y acota la ventana', async () => {
   assert.equal(none.deltaPct, null);
   assert.deepEqual(none.topChanges, []);
 });
+
+// El seed es fijo, así que las fechas se calculan contra un reloj congelado:
+// el 13 de septiembre de 2026, el mismo día en el que termina el histórico.
+const RECURRING_TOOLS = () => createBankingTools(createMemoryRepository(), { now: () => new Date('2026-09-13T12:00:00Z') });
+
+test('getRecurringPayments detecta los pagos fijos y descarta el gasto variable', async () => {
+  const { payments } = await RECURRING_TOOLS().getRecurringPayments({ months: 6 });
+  const byDescription = new Map(payments.map((p) => [p.description, p]));
+
+  const luz = byDescription.get('CFE - Pago de servicio');
+  assert.equal(luz.dayOfMonth, 29);
+  assert.equal(luz.category, 'Servicios');
+  assert.ok(luz.monthsSeen >= 3);
+
+  assert.equal(byDescription.get('Renta departamento').dayOfMonth, 1);
+  assert.equal(byDescription.get('Telmex - Internet').averageAmount, 599);
+  // Suscripción cargada a la tarjeta: el patrón no depende de la cuenta.
+  assert.equal(byDescription.get('Spotify Premium').accountId, 'ACC-003');
+
+  // El súper son varias compras al mes en días distintos: no es un pago fijo.
+  assert.equal(byDescription.has('HEB Cumbres - Supermercado'), false);
+  assert.ok(payments.every((p) => p.occurrences <= p.monthsSeen * 1.5));
+});
+
+test('getRecurringPayments calcula la próxima fecha y ordena por urgencia', async () => {
+  const { payments, dueSoon, count, monthlyTotal } = await RECURRING_TOOLS().getRecurringPayments();
+  const byDescription = new Map(payments.map((p) => [p.description, p]));
+
+  // Día 20, hoy es 13: toca este mes.
+  assert.equal(byDescription.get('Telmex - Internet').nextDate, '2026-09-20');
+  assert.equal(byDescription.get('Telmex - Internet').daysUntil, 7);
+  // Día 1, ya cargado el 1 de septiembre: la próxima es en octubre.
+  assert.equal(byDescription.get('Netflix México').nextDate, '2026-10-01');
+
+  assert.ok(payments.every((p) => p.daysUntil >= 0));
+  for (let i = 1; i < payments.length; i++) assert.ok(payments[i - 1].daysUntil <= payments[i].daysUntil);
+
+  assert.equal(count, payments.length);
+  assert.equal(monthlyTotal, round2(payments.reduce((s, p) => s + p.averageAmount, 0)));
+  assert.equal(dueSoon.count, payments.filter((p) => p.daysUntil <= dueSoon.days).length);
+});
+
+test('getRecurringPayments filtra por cuenta y acota la ventana de meses', async () => {
+  const tools = RECURRING_TOOLS();
+  const { payments, accountId } = await tools.getRecurringPayments({ accountId: 'ACC-003' });
+  assert.equal(accountId, 'ACC-003');
+  assert.ok(payments.length > 0);
+  assert.ok(payments.every((p) => p.accountId === 'ACC-003'));
+
+  // Fuera de rango: la ventana se recorta a 3–12 meses como en la tendencia.
+  assert.equal((await tools.getRecurringPayments({ months: 99 })).months, 12);
+  assert.equal((await tools.getRecurringPayments({ months: 1 })).months, 3);
+});

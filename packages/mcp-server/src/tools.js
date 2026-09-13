@@ -37,6 +37,18 @@ function trendMonths(months, fallback) {
   return Math.min(Math.max(Math.trunc(months), MIN_TREND_MONTHS), MAX_TREND_MONTHS);
 }
 
+// Pagos recurrentes: el banco simulado no tiene tabla de domiciliaciones, así
+// que "mis pagos fijos" se infiere de los movimientos. Un cargo es recurrente si
+// aparece en al menos 3 meses distintos de la ventana, no más de ~1 vez por mes
+// (el súper son varias compras al mes, no un pago fijo) y siempre cerca del
+// mismo día: hasta 3 días de desviación, que absorbe los fines de semana.
+const RECURRING_MIN_MONTHS = 3;
+const RECURRING_MAX_PER_MONTH = 1.5;
+const RECURRING_MAX_DAY_STDDEV = 3;
+// "Lo que se te viene esta semana".
+const RECURRING_DUE_SOON_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 // Reestructura de tarjeta: el saldo se convierte en un plan de pagos fijos a
 // tasa preferente. Plazos y tasa son reglas de negocio del banco simulado.
 export const RESTRUCTURE_TERMS = [6, 12, 18, 24, 36];
@@ -67,7 +79,9 @@ function annualRateFor(product, months) {
   return round2(product.minRate + spread * (months / product.maxMonths));
 }
 
-export function createBankingTools(repo) {
+// El reloj se inyecta para que las fechas calculadas (la próxima ocurrencia de
+// un pago recurrente) se puedan probar sin depender del día en que corren.
+export function createBankingTools(repo, { now = () => new Date() } = {}) {
   async function getCustomerProfile() {
     return repo.getCustomer();
   }
@@ -138,6 +152,63 @@ export function createBankingTools(repo) {
       // Dos desviaciones estándar: el mes se sale de lo habitual y vale la pena avisar.
       unusual: zScore !== null && Math.abs(zScore) >= UNUSUAL_Z,
       topChanges,
+    };
+  }
+
+  // Próxima vez que toca un cargo mensual del día `dayOfMonth`: este mes si
+  // todavía no llega, el siguiente si ya pasó o si el cargo de este mes ya está
+  // registrado. Los meses cortos recorren el día al último del mes (un cargo el
+  // 31 cae el 28 en febrero), y todo se calcula en UTC, que es el calendario en
+  // el que el repositorio expone `date`.
+  function nextOccurrence(dayOfMonth, lastDate, today) {
+    const onMonth = (offset) => {
+      const year = today.getUTCFullYear();
+      const month = today.getUTCMonth() + offset;
+      // Día 0 del mes siguiente = último día de este mes.
+      const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      return new Date(Date.UTC(year, month, Math.min(dayOfMonth, daysInMonth)));
+    };
+    const thisMonth = onMonth(0);
+    const alreadyCharged = lastDate && thisMonth.toISOString().slice(0, 10) <= lastDate;
+    return alreadyCharged || thisMonth < today ? onMonth(1) : thisMonth;
+  }
+
+  // Pagos fijos detectados en los movimientos: qué se paga, qué día del mes,
+  // cuánto en promedio y cuándo toca la próxima vez. Sin LLM de por medio: es
+  // el patrón que ya está en la base.
+  async function getRecurringPayments({ accountId, months } = {}) {
+    const span = trendMonths(months, DEFAULT_TREND_MONTHS);
+    const found = await repo.recurringPayments({
+      accountId,
+      months: span,
+      minMonths: RECURRING_MIN_MONTHS,
+      maxPerMonth: RECURRING_MAX_PER_MONTH,
+      maxDayStddev: RECURRING_MAX_DAY_STDDEV,
+    });
+    const today = new Date(now().toISOString().slice(0, 10));
+    const payments = found
+      .map(({ dayStddev, ...payment }) => {
+        const next = nextOccurrence(payment.dayOfMonth, payment.lastDate, today);
+        return {
+          ...payment,
+          nextDate: next.toISOString().slice(0, 10),
+          daysUntil: Math.round((next.getTime() - today.getTime()) / DAY_MS),
+        };
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil || b.averageAmount - a.averageAmount);
+    const dueSoon = payments.filter((p) => p.daysUntil <= RECURRING_DUE_SOON_DAYS);
+    return {
+      months: span,
+      ...(accountId ? { accountId } : {}),
+      payments,
+      count: payments.length,
+      // Lo que se va cada mes en cargos fijos: la suma de los promedios.
+      monthlyTotal: round2(payments.reduce((s, p) => s + p.averageAmount, 0)),
+      dueSoon: {
+        days: RECURRING_DUE_SOON_DAYS,
+        count: dueSoon.length,
+        total: round2(dueSoon.reduce((s, p) => s + p.averageAmount, 0)),
+      },
     };
   }
 
@@ -395,6 +466,7 @@ export function createBankingTools(repo) {
     getSpendingByCategory,
     getSpendingTrend,
     getMonthlyCashflow,
+    getRecurringPayments,
     getInvestments,
     getExchangeRates,
     getBeneficiaries,

@@ -5,6 +5,7 @@ import {
   createGeminiProvider,
   fromGeminiResponse,
   sanitizeSchema,
+  thinkingConfig,
   toGeminiRequest,
 } from '../src/providers/gemini.js';
 import { availableProviders, getLlmProvider } from '../src/providers/index.js';
@@ -140,6 +141,49 @@ test('chat reintenta ante 429 con el retryDelay de Gemini y se rinde si la esper
   const slow = fakeFetch([jsonResponse(429, { error: { details: [{ retryDelay: '900s' }] } })]);
   const stuck = createGeminiProvider({ apiKey: 'k', fetchImpl: slow.impl, sleep: noSleep });
   await assert.rejects(() => stuck.chat({ messages: [], tools: [] }), /límite de cuota.*16 min/);
+});
+
+test('chat no reintenta cuando el 429 es por cupo diario', async () => {
+  // Respuesta real de Gemini: el retryDelay es de segundos aunque la cuota
+  // agotada sea la del día, así que esperarlo solo repetiría el error.
+  const { impl, calls } = fakeFetch([
+    jsonResponse(429, {
+      error: {
+        code: 429,
+        status: 'RESOURCE_EXHAUSTED',
+        message: 'Quota exceeded for metric: generate_content_free_tier_requests, limit: 20',
+        details: [
+          { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] },
+          { retryDelay: '13s' },
+        ],
+      },
+    }),
+  ]);
+  const notices = [];
+  const provider = createGeminiProvider({ apiKey: 'k', model: 'gemini-3.6-flash', fetchImpl: impl, sleep: noSleep });
+  await assert.rejects(
+    () => provider.chat({ messages: [], tools: [], onRateLimit: (s2) => notices.push(s2) }),
+    /cupo diario gratis de gemini-3.6-flash agotado/,
+  );
+  assert.equal(calls.length, 1);
+  assert.deepEqual(notices, []);
+});
+
+test('chat reintenta el 503 de modelo saturado y traduce el nivel de razonamiento por modelo', async () => {
+  const { impl, calls } = fakeFetch([
+    jsonResponse(503, { error: { code: 503, status: 'UNAVAILABLE', message: 'high demand' } }),
+    jsonResponse(200, { candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+  ]);
+  const notices = [];
+  const provider = createGeminiProvider({ apiKey: 'k', model: 'gemini-2.5-flash', fetchImpl: impl, sleep: noSleep });
+  const msg = await provider.chat({ messages: [], tools: [], onRateLimit: (s2) => notices.push(s2) });
+  assert.equal(msg.content, 'ok');
+  assert.equal(calls.length, 2);
+  assert.deepEqual(notices, [2]);
+  // 2.5 solo entiende thinkingBudget; mandarle thinkingLevel devuelve un 400.
+  assert.deepEqual(calls[0].body.generationConfig.thinkingConfig, { thinkingBudget: 512 });
+  assert.deepEqual(thinkingConfig('gemini-3.6-flash', 'low'), { thinkingLevel: 'low' });
+  assert.deepEqual(thinkingConfig('gemini-2.5-flash', 'off'), { thinkingBudget: 0 });
 });
 
 test('chat propaga otros errores HTTP con el cuerpo', async () => {

@@ -82,7 +82,18 @@ hijos por id (lista de adyacencia) y siempre hay un componente `root`:
 **El modelo no escribe eso.** Los LLM generan mucho mejor JSON anidado que grafos con identificadores,
 así que el modelo emite `children: [{…}, {…}]` y el servidor aplana (`flattenTree`): asigna ids,
 renombra duplicados, acepta `type` en vez de `component`, nombres en minúsculas o alias
-(`Column`→`Stack`, `Metric`→`Kpi`), y eleva componentes v1 mezclados. Lo que no reconoce se descarta.
+(`Column`→`Stack`, `Metric`→`Kpi`), y eleva componentes v1 mezclados.
+
+Lo que el modelo escribe mal se repara o se quita, y siempre queda registrado en el `warnings` de
+`normalizeAgentReply` (el servidor lo escribe en el log, porque el síntoma de un componente inventado
+es "la pantalla salió incompleta" y así no se diagnostica):
+
+| Caso | Qué pasa |
+|---|---|
+| Componente que no existe ni por alias | se descarta con su subárbol y se anota en `dropped` |
+| Control (`Slider`, `Select`, `DatePicker`…) con `value` literal | se le crea la ruta `/_controls/<id>` en el dataModel y se liga ahí: el control escribe y lo derivado se recalcula, en vez de quedar muerto al tacto |
+| `Button` con `action` string o sin el sobre `event` | se normaliza a `{"event":{"name","context"}}` |
+| `Button` sin nada que disparar | se quita y se desengancha de su padre |
 
 ### Catálogo `urn:norte:a2ui:catalog:banorte:v2`
 
@@ -91,10 +102,15 @@ Publicado en `GET /api/a2ui/catalog`. Fuente única: `packages/a2ui-schema/src/c
 | Capa | Componentes |
 |---|---|
 | **Layout** | `Stack`, `Row`, `Grid`, `Card`, `Section`, `Tabs`, `Divider`, `List` |
-| **Dominio** (propios, con los 16 tipos de gráfica de v1) | `Header`, `Kpi`, `AccountCard`, `Chart`, `Table`, `TransactionList`, `Alert`, `Progress`, `Text` |
-| **Controles** (ligados al dataModel) | `Slider`, `Select`, `ChoiceChips`, `TextField`, `Toggle` |
+| **Dominio** (propios, con los 16 tipos de gráfica de v1) | `Header`, `Kpi`, `AccountCard`, `Chart`, `Table`, `TransactionList`, `DataTable`, `Calendar`, `Alert`, `Progress`, `Text` |
+| **Controles** (ligados al dataModel) | `Slider`, `Select`, `ChoiceChips`, `TextField`, `Toggle`, `DatePicker` |
 | **Acciones** | `Button`, `Form` |
 | Interno del cliente | `Skeleton` (no se le ofrece al modelo) |
+
+Son 27 componentes y **los dos clientes pintan los 27**: un test
+(`tests/catalog-parity.test.js`) lee el registro de la web y el de la app y falla si a alguno le falta
+uno. La entrada del catálogo trae exactamente dos descripciones, cada una con su destino: la `signature`
+(la única que lee el modelo) y el `hint` (el que lee un cliente del descriptor HTTP).
 
 La sección del prompt se genera del catálogo (`componentsPromptSectionV2`) como **firmas** compactas
 más un ejemplo completo: el orquestador (Groq on-demand) tiene 8 000 tokens por minuto contando tools
@@ -194,8 +210,20 @@ Un patch a una superficie que no es la activa se trata como superficie nueva.
 ## 8. Negociación de catálogo
 
 Cada petición al agente lleva `client: {platform, catalogId, components: [...]}` con lo que ese
-cliente sabe pintar (`SUPPORTED_COMPONENTS` de cada renderer). El prompt se restringe a esa lista:
-un cliente que solo pinte `Stack`, `Kpi` y `Text` recibe superficies con solo eso. El widget de Android
+cliente sabe pintar (`SUPPORTED_COMPONENTS` de cada renderer, derivado del registro real: si el
+componente no está implementado, no se anuncia). La negociación tiene **dos mitades**, y las dos hacen
+falta:
+
+1. **El prompt** (`buildSystemPrompt`): el catálogo se filtra a esa lista y las guías y los flujos
+   también. Si un cliente no pinta `Calendar`, el flujo de agenda le habla de `Table`, no de `Calendar`.
+   Filtrar solo el catálogo no alcanzaba: los flujos nombraban componentes por su cuenta.
+2. **La superficie** (`degradeComponents`, `core/degrade.js`): antes de salir por el stream, lo que el
+   cliente no anunció se cambia por la mejor equivalencia que sí conozca — contenedor desconocido →
+   `Stack` con sus hijos, `DataTable`/`Calendar`/`TransactionList`/`Chart` → `Table`, `DatePicker` →
+   `TextField`, `Slider`/`ChoiceChips` → `Select` (conservando su ruta de escritura) y, si nada aplica,
+   el título en `Text`. Así el modelo puede equivocarse y el cliente igual recibe algo que sabe pintar.
+
+Un cliente que solo pinte `Stack`, `Kpi` y `Text` recibe superficies con solo eso. El widget de Android
 hoy no habla con el agente (abre deep links); el mecanismo ya está para cuando lo haga.
 
 ## 9. Matriz de conformidad con A2UI v1.0
@@ -220,17 +248,19 @@ hoy no habla con el agente (abre deep links); el mecanismo ya está para cuando 
 
 ```
 packages/a2ui-schema/src/core/     núcleo sin dependencias (§7)
-packages/a2ui-schema/src/messages.js  mensajes zod, normalizeAgentReply, parseUserAction
+packages/a2ui-schema/src/core/catalog-v2.js  el catálogo: firmas para el prompt y hints para el descriptor
+packages/a2ui-schema/src/core/degrade.js     la superficie adaptada a lo que el cliente pinta (§8)
+packages/a2ui-schema/src/messages.js  mensajes zod, normalizeAgentReply (con sus reparaciones), parseUserAction
 apps/api/src/agent.js              prompt v2, esqueleto, chunks, patch
 apps/api/src/a2ui-stream.js        cómo se transmite una superficie
 apps/api/src/actions.js            eventos tipados y autorización de herramientas con dinero
 apps/api/src/routes/chat.js        POST /api/chat · POST /api/action
 apps/api/src/routes/a2ui.js        GET /api/a2ui/catalog
-apps/web/public/js/a2ui-web.js     renderer DOM reactivo + registro de 24 componentes
+apps/web/public/js/a2ui-web.js     renderer DOM reactivo + registro de los 27 componentes
 apps/web/public/css/a2ui.css       layout, controles, botones, esqueleto
-apps/mobile/src/a2ui/              A2UIRenderer (React), inputs nativos, core sincronizado
+apps/mobile/src/a2ui/              A2UIRenderer (React), inputs/calendar/tables nativos, core sincronizado
 scripts/sync-a2ui-core.js          copia/verifica el núcleo en la app móvil
 ```
 
-Pruebas: `packages/a2ui-schema/tests/{core,messages,sync}.test.js`, `apps/api/tests/{agent,routes,ui-spec}.test.js`,
+Pruebas: `packages/a2ui-schema/tests/{core,messages,sync,catalog-parity,degrade}.test.js`, `apps/api/tests/{agent,routes,ui-spec}.test.js`,
 `packages/mcp-server/tests/tools.test.js` (reestructura).

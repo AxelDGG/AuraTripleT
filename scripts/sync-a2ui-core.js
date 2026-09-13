@@ -27,6 +27,12 @@ export function expectedContent(name) {
   return HEADER + readFileSync(path.join(SOURCE_DIR, name), 'utf8');
 }
 
+// El fin de línea no es parte del contenido: con core.autocrlf=true (Windows)
+// git entrega CRLF y el HEADER se escribe con LF, así que comparar byte a byte
+// marcaba los nueve archivos como desincronizados aunque fueran idénticos. Un
+// guard que siempre grita es un guard que nadie lee.
+const normalize = (text) => text.replace(/\r\n/g, '\n');
+
 export function diffs() {
   const out = [];
   for (const name of coreFiles()) {
@@ -36,7 +42,7 @@ export function diffs() {
     } catch {
       current = null;
     }
-    if (current !== expectedContent(name)) out.push(name);
+    if (current === null || normalize(current) !== normalize(expectedContent(name))) out.push(name);
   }
   return out;
 }

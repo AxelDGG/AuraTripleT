@@ -19,6 +19,8 @@ import { Card, Divider as UiDivider, SegmentedTabs, Text } from '../components/u
 import { color, radius, space } from '../theme/tokens';
 import { CATALOG_ID, COMPONENT_NAMES_V2, ROOT_ID, createSurfaceStore } from './core/index';
 import { formatCurrency } from './core/format';
+import { Calendar, DatePicker } from './calendar';
+import { DataTable } from './tables';
 import { Button, ChoiceChips, Select, Slider, TextField, Toggle } from './inputs';
 
 // Un solo store para la app: el chat, el historial y el widget comparten superficies.
@@ -124,8 +126,8 @@ function Kpi({ props }) {
 }
 
 function Skeleton({ props }) {
-  const blocks = { header: 2, chart: 1, cards: 2, kpis: 2, list: 3, form: 2, plan: 3, text: 2 }[props.variant] ?? 2;
-  const tall = props.variant === 'chart' || props.variant === 'plan';
+  const blocks = { header: 2, chart: 1, cards: 2, kpis: 2, list: 3, form: 2, plan: 3, calendar: 2, text: 2 }[props.variant] ?? 2;
+  const tall = props.variant === 'chart' || props.variant === 'plan' || props.variant === 'calendar';
   return (
     <View style={{ gap: space.sm }}>
       {Array.from({ length: blocks }, (_, i) => (
@@ -150,6 +152,8 @@ const REGISTRY = {
   Chart: ({ props }) => <Chart component={props} />,
   Table: ({ props }) => <Table component={props} />,
   TransactionList: ({ props }) => <TransactionList component={props} />,
+  DataTable,
+  Calendar,
   Alert: ({ props }) => <Alert component={props} />,
   Progress: ({ props }) => <Progress component={props} />,
   Text: ({ props }) => <Markdown component={props} />,
@@ -159,6 +163,7 @@ const REGISTRY = {
   ChoiceChips,
   TextField,
   Toggle,
+  DatePicker,
   Button,
   Form: ({ props, ctx }) => (
     <Form
@@ -188,7 +193,13 @@ function Node({ store, surfaceId, id, scope, onAction, disabled }) {
   const component = store.getComponent(surfaceId, id);
   if (!component) return null;
   const Impl = REGISTRY[component.component];
-  if (!Impl) return null;
+  if (!Impl) {
+    // No debería pasar: el servidor degrada la superficie a lo que esta app
+    // anunció en clientCapabilities(). Si pasa, es que la app va atrasada
+    // respecto del catálogo, y en desarrollo hay que enterarse.
+    if (typeof __DEV__ !== 'undefined' && __DEV__) console.warn('[a2ui] sin renderer para', component.component);
+    return null;
+  }
   const props = store.resolve(surfaceId, component, { scope });
   if (props.hidden === true || props.visible === false) return null;
 

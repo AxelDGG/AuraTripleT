@@ -19,6 +19,7 @@ export const DEFAULT_CHUNK_DELAY_MS = Number(process.env.A2UI_STREAM_DELAY_MS ??
 // Qué silueta pinta el esqueleto según la herramienta que el modelo pidió.
 const TOOL_SKELETON = {
   get_spending_by_category: 'chart',
+  get_spending_trend: 'chart',
   get_monthly_cashflow: 'chart',
   get_portfolio_performance: 'chart',
   get_portfolio: 'chart',
@@ -34,6 +35,15 @@ const TOOL_SKELETON = {
   transfer_funds: 'text',
   get_card_restructure_options: 'plan',
   restructure_card_debt: 'text',
+  // Agenda: lo primero que aparece es la silueta de un mes.
+  get_card_payment_schedule: 'calendar',
+  list_calendar_events: 'calendar',
+  check_calendar_availability: 'calendar',
+  get_recurring_payments: 'calendar',
+  schedule_card_payments: 'text',
+  create_calendar_event: 'text',
+  update_calendar_event: 'text',
+  delete_calendar_event: 'text',
 };
 
 const MAX_SKELETON_BLOCKS = 4;

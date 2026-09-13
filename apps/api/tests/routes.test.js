@@ -102,6 +102,22 @@ test('GET /api/dashboard agrega las 12 llamadas MCP en un solo payload', async (
   assert.equal(body.data.customer.id, 'CLT-889201');
 });
 
+test('GET /api/recurring-payments devuelve los pagos fijos sin pasar por el agente', async () => {
+  const res = await fetch(`${baseUrl}/api/recurring-payments`);
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.ok, true);
+  assert.ok(body.data.count > 0);
+  assert.equal(body.data.count, body.data.payments.length);
+  assert.ok(body.data.monthlyTotal > 0);
+  const [first] = body.data.payments;
+  assert.ok(first.dayOfMonth >= 1 && first.dayOfMonth <= 31);
+  assert.match(first.nextDate, /^\d{4}-\d{2}-\d{2}$/);
+
+  const porCuenta = await (await fetch(`${baseUrl}/api/recurring-payments?accountId=ACC-003&months=6`)).json();
+  assert.ok(porCuenta.data.payments.every((p) => p.accountId === 'ACC-003'));
+});
+
 test('POST /api/simulate-credit valida la entrada y delega en la tool MCP', async () => {
   const bad = await postJson('/api/simulate-credit', { productId: 'CRED-PERS', amount: 'mucho' });
   assert.equal(bad.status, 400);

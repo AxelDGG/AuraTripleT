@@ -31,6 +31,14 @@ function fakeProvider(turns) {
   };
 }
 
+// Los resultados de las herramientas ya no viajan como mensajes `tool`: la fase
+// de interfaz los recibe como texto dentro del turno del usuario.
+function toolData(messages, name) {
+  const segment = messages.at(-1).content.split('### ').find((part) => part.startsWith(name));
+  assert.ok(segment, `faltan los datos de ${name} en el turno`);
+  return JSON.parse(segment.slice(name.length));
+}
+
 const types = (events) => events.filter((e) => e.type !== 'a2ui').map((e) => e.type);
 const a2uiKinds = (events) => events.filter((e) => e.type === 'a2ui').map((e) => Object.keys(e.message).find((k) => k !== 'version'));
 
@@ -48,9 +56,8 @@ test('runAgent ejecuta tool calls vía MCP, cierra el ciclo y emite la UI normal
   assert.equal(result.ui[0].level, 'info'); // enum acotado por el contrato
   assert.equal(result.surface.components[1].component, 'Alert');
   assert.ok(provider.received[0].tools.some((t) => t.function.name === 'get_accounts'));
-  const toolMsg = provider.received[1].messages.find((m) => m.role === 'tool');
-  assert.equal(toolMsg.tool_call_id, 'c1');
-  assert.equal(JSON.parse(toolMsg.content).length, 3);
+  assert.ok(!provider.received[1].tools, 'la fase de interfaz ya no paga los esquemas de las herramientas');
+  assert.equal(toolData(provider.received[1].messages, 'get_accounts').length, 3);
 });
 
 test('runAgent transmite la superficie A2UI por partes: esqueleto al pedir herramientas, luego datos y chunks', async () => {
@@ -97,7 +104,10 @@ test('runAgent transmite la superficie A2UI por partes: esqueleto al pedir herra
 
 test('runAgent sin herramientas crea la superficie vacía y luego manda los componentes', async () => {
   const events = [];
-  const provider = fakeProvider([{ role: 'assistant', content: '{"message":"hola","title":"Hola","ui":[{"component":"Text","markdown":"hola"}]}' }]);
+  const provider = fakeProvider([
+    { role: 'assistant', content: 'NO_TOOLS' },
+    { role: 'assistant', content: '{"message":"hola","title":"Hola","ui":[{"component":"Text","markdown":"hola"}]}' },
+  ]);
   await runAgent({ userMessage: 'hola', emit: (e) => events.push(e), provider, streamDelayMs: 0 });
   assert.deepEqual(a2uiKinds(events), ['createSurface', 'updateComponents']);
   assert.deepEqual(events.filter((e) => e.type === 'a2ui')[0].message.createSurface.components, []);
@@ -150,8 +160,7 @@ test('runAgent fuerza confirmed=false en transfer_funds cuando no es un envío d
   await runAgent({ userMessage: 'manda 100 a Ana', emit: (e) => events.push(e), provider, streamDelayMs: 0 });
 
   assert.equal(events.find((e) => e.type === 'tool_call').args.confirmed, false);
-  const toolMsg = provider.received[1].messages.find((m) => m.role === 'tool');
-  assert.match(JSON.parse(toolMsg.content).error, /confirmación/);
+  assert.match(toolData(provider.received[1].messages, 'transfer_funds').error, /confirmación/);
 });
 
 test('runAgent autoriza transfer_funds solo con el prefijo [form:transfer_funds]', async () => {
@@ -173,8 +182,7 @@ test('runAgent autoriza transfer_funds solo con el prefijo [form:transfer_funds]
   });
 
   assert.equal(events.find((e) => e.type === 'tool_call').args.confirmed, true);
-  const toolMsg = provider.received[1].messages.find((m) => m.role === 'tool');
-  assert.equal(JSON.parse(toolMsg.content).success, true);
+  assert.equal(toolData(provider.received[1].messages, 'transfer_funds').success, true);
 });
 
 test('runAgent autoriza transfer_funds con un evento tipado válido y lo niega si el contexto no valida', async () => {
@@ -205,8 +213,11 @@ test('runAgent pide reparación y devuelve el fallback si el modelo nunca produc
 
   const result = await runAgent({ userMessage: 'hola', emit: (e) => events.push(e), provider, streamDelayMs: 0 });
 
-  assert.equal(provider.received.length, 6);
-  assert.match(provider.received[1].messages.at(-1).content, /JSON válido/);
+  // Una llamada para elegir herramientas y dos intentos de interfaz (el segundo
+  // es la reparación); antes eran seis rondas con el prompt y las tools enteros.
+  assert.equal(provider.received.length, 3);
+  assert.match(provider.received[2].messages.at(-1).content, /JSON válido/);
+  assert.equal(provider.received[2].messages.at(-2).content.length, 'no soy json'.length, 'del intento fallido solo se reenvía un muñón');
   assert.equal(result.ui[0].type, 'alert');
   assert.equal(result.ui[0].level, 'error');
   assert.equal(events.at(-1).type, 'ui');
@@ -237,6 +248,59 @@ test('el prompt describe el catálogo v2 y se restringe a lo que el cliente anun
   assert.ok(!widget.includes('Slider{'));
 });
 
+test('las guías y los flujos del prompt tampoco nombran lo que el cliente no sabe pintar', () => {
+  // El catálogo ya se filtraba; los flujos no, y ahí se colaban Calendar,
+  // DataTable y DatePicker aunque el cliente no los tuviera.
+  const limitado = buildSystemPrompt({
+    clientComponents: ['Stack', 'Grid', 'Header', 'Kpi', 'Chart', 'Table', 'Text', 'TextField', 'Select', 'Button', 'Form', 'Alert'],
+  });
+  for (const nombre of ['Calendar', 'DataTable', 'DatePicker', 'ChoiceChips', 'Slider']) {
+    assert.ok(!limitado.includes(nombre), `${nombre} no debería nombrarse para este cliente`);
+  }
+  // Y los flujos siguen existiendo, con el equivalente que sí tiene.
+  assert.ok(limitado.includes('get_card_payment_schedule'));
+  assert.ok(limitado.includes('AAAA-MM-DD'));
+  assert.ok(limitado.includes('Table'));
+
+  // Con el cliente completo, la guía de agenda vuelve a nombrarlos.
+  const completo = buildSystemPrompt();
+  for (const nombre of ['Calendar', 'DataTable', 'DatePicker']) assert.ok(completo.includes(nombre), nombre);
+});
+
+test('runAgent degrada la superficie a lo que el cliente anunció', async () => {
+  const events = [];
+  const provider = fakeProvider([
+    { role: 'assistant', content: 'NO_TOOLS' },
+    {
+      role: 'assistant',
+      content: JSON.stringify({
+        message: 'tu agenda',
+        title: 'Agenda',
+        ui: [
+          { component: 'Header', title: 'Pagos de septiembre' },
+          { component: 'Calendar', title: 'Septiembre', events: [{ date: '2026-09-15', label: 'Tarjeta Oro', kind: 'payment' }] },
+        ],
+      }),
+    },
+  ]);
+
+  const result = await runAgent({
+    userMessage: 'mis pagos',
+    emit: (e) => events.push(e),
+    provider,
+    streamDelayMs: 0,
+    client: { platform: 'widget', components: ['Stack', 'Header', 'Table', 'Text'] },
+  });
+
+  const nombres = result.surface.components.map((c) => c.component);
+  assert.ok(!nombres.includes('Calendar'), 'el cliente no sabe pintar Calendar');
+  assert.ok(nombres.includes('Table'), 'y en su lugar recibe la tabla equivalente');
+  // Lo que sale por el stream es lo ya degradado, no la superficie original.
+  const enviados = events.filter((e) => e.type === 'a2ui' && e.message.updateComponents)
+    .flatMap((e) => e.message.updateComponents.components.map((c) => c.component));
+  assert.ok(!enviados.includes('Calendar'));
+});
+
 test('el ciclo completo de reestructura: el evento confirm_restructure autoriza restructure_card_debt vía MCP', async () => {
   const events = [];
   const provider = fakeProvider([
@@ -262,7 +326,7 @@ test('el ciclo completo de reestructura: el evento confirm_restructure autoriza 
 
   const call = events.find((e) => e.type === 'tool_call');
   assert.equal(call.args.confirmed, true);
-  const toolResult = JSON.parse(provider.received[1].messages.find((m) => m.role === 'tool').content);
+  const toolResult = toolData(provider.received[1].messages, 'restructure_card_debt');
   assert.equal(toolResult.success, true);
   assert.equal(toolResult.months, 24);
   assert.match(toolResult.folio, /^REST-/);
@@ -270,4 +334,45 @@ test('el ciclo completo de reestructura: el evento confirm_restructure autoriza 
   // La superficie activa se resume: la lista de opciones no viaja completa.
   const note = provider.received[0].messages.find((m) => m.role === 'system' && m.content.startsWith('SUPERFICIE ACTIVA'));
   assert.match(note.content, /…\(5 en total\)/);
+});
+
+test('el turno se parte en dos prompts: elegir herramientas y armar la interfaz', async () => {
+  const provider = fakeProvider([
+    { role: 'assistant', content: null, tool_calls: [toolCall('c1', 'get_spending_by_category', {})] },
+    { role: 'assistant', content: FINAL_JSON },
+  ]);
+  await runAgent({ userMessage: '¿en qué gasté en agosto?', emit: () => {}, provider, streamDelayMs: 0 });
+
+  const [fase1, fase2] = provider.received.map((r) => r.messages[0].content);
+  // Fase 1: las herramientas, sin el catálogo de componentes ni las gráficas.
+  assert.ok(provider.received[0].tools.length > 0);
+  assert.ok(!fase1.includes('Slider{'), 'la fase de herramientas no paga el catálogo de componentes');
+  assert.ok(!fase1.includes('GRÁFICAS'), 'ni la guía de gráficas');
+  assert.ok(fase1.includes('NO_TOOLS'));
+  // Fase 2: el catálogo, sin los esquemas de las herramientas.
+  assert.ok(!provider.received[1].tools, 'la fase de interfaz no vuelve a mandar las herramientas');
+  assert.ok(fase2.includes('Slider{'));
+  assert.ok(!fase2.includes('NO_TOOLS'));
+  // Y cada mitad pesa menos que el prompt entero que antes viajaba dos veces.
+  assert.ok(fase1.length + fase2.length < buildSystemPrompt().length * 2);
+});
+
+test('el prompt de interfaz solo lleva el flujo y la gráfica de las herramientas que corrieron', async () => {
+  const run = async (tool) => {
+    const provider = fakeProvider([
+      { role: 'assistant', content: null, tool_calls: [toolCall('c1', tool, {})] },
+      { role: 'assistant', content: FINAL_JSON },
+    ]);
+    await runAgent({ userMessage: 'x', emit: () => {}, provider, streamDelayMs: 0 });
+    return provider.received[1].messages[0].content;
+  };
+
+  const gastos = await run('get_spending_by_category');
+  assert.ok(gastos.includes('doughnut (≤6 categorías)'));
+  assert.ok(!gastos.includes('FLUJOS'), 'una consulta de gastos no necesita ningún flujo');
+  assert.ok(!gastos.includes('get_portfolio_performance'), 'ni la guía de gráficas de otras herramientas');
+
+  const plan = await run('get_card_restructure_options');
+  assert.ok(plan.includes('Aplicar plan'), 'el flujo de reestructura sí viaja cuando su herramienta corrió');
+  assert.ok(!plan.includes('transfer_funds'));
 });

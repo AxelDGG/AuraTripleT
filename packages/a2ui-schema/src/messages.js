@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { containsBinding } from './core/binding.js';
-import { A2UI_VERSION, CATALOG_ID, ROOT_ID, canonicalComponentName } from './core/catalog-v2.js';
+import { A2UI_VERSION, CATALOG_ID, INPUT_COMPONENTS, ROOT_ID, canonicalComponentName } from './core/catalog-v2.js';
 import { flattenTree } from './core/flatten.js';
 import { isValidPointer } from './core/pointer.js';
 import { toV1Components } from './core/compat.js';
@@ -189,6 +189,73 @@ function deriveTitle(input, components, message) {
   return 'Visualización';
 }
 
+// ---------- reparaciones de lo que el modelo suele escribir mal ----------
+//
+// Dos errores se repiten y los dos dejan la pantalla viva pero muerta al tacto:
+// un control con `value` literal (no escribe en ninguna parte, así que nada se
+// recalcula) y un Button cuya acción no tiene la forma {event:{name}}. En vez
+// de dejarlos pasar se arreglan aquí, y lo que no tiene arreglo se quita: un
+// botón que no dispara nada es peor que ningún botón.
+
+const CONTROL_MODEL_KEY = '_controls';
+
+// Acción de Button en forma canónica, o null si no hay nada que disparar.
+function repairAction(action) {
+  if (typeof action === 'string' && action.trim()) return { event: { name: action.trim(), context: {} } };
+  if (!isObject(action)) return null;
+  if (isObject(action.event) && typeof action.event.name === 'string') return action;
+  if (isObject(action.functionCall) && typeof action.functionCall.call === 'string') return action;
+  // {"action":{"name":"confirm_x","context":{…}}} — le falta el sobre `event`.
+  if (typeof action.name === 'string' && action.name.trim()) {
+    return { event: { name: action.name.trim(), context: isObject(action.context) ? action.context : {} } };
+  }
+  return null;
+}
+
+// Devuelve los componentes ya reparados y anota en `warnings` lo que se tocó.
+// `model` se muta: ahí es donde viven los valores de los controles rescatados.
+function repairComponents(components, model, warnings) {
+  const out = [];
+  for (const component of components) {
+    const name = component.component;
+
+    if (INPUT_COMPONENTS.has(name) && !(isObject(component.value) && typeof component.value.path === 'string')) {
+      // El control se queda sin destino: se le inventa uno en el dataModel con
+      // el literal que traía, para que al menos escriba y recalcule.
+      const path = `/${CONTROL_MODEL_KEY}/${component.id}`;
+      if (!isObject(model[CONTROL_MODEL_KEY])) model[CONTROL_MODEL_KEY] = {};
+      // Solo se rescata un valor inicial si era un literal. Un {call:…} es un
+      // valor derivado: un control no puede escribir en él, y guardarlo tal
+      // cual dejaría el objeto del binding pintado en pantalla.
+      const literal = ['string', 'number', 'boolean'].includes(typeof component.value) ? component.value : '';
+      model[CONTROL_MODEL_KEY][component.id] = literal;
+      out.push({ ...component, value: { path } });
+      warnings.repairedControls.push({ id: component.id, component: name, path });
+      continue;
+    }
+
+    if (name === 'Button') {
+      const action = repairAction(component.action);
+      if (!action) {
+        warnings.deadButtons.push({ id: component.id, label: typeof component.label === 'string' ? component.label : '' });
+        continue;
+      }
+      out.push(action === component.action ? component : { ...component, action });
+      continue;
+    }
+
+    out.push(component);
+  }
+
+  // El botón que se fue no puede seguir colgando de su padre.
+  const known = new Set(out.map((c) => c.id));
+  return out.map((component) => {
+    if (!Array.isArray(component.children)) return component;
+    const children = component.children.filter((id) => known.has(id));
+    return children.length === component.children.length ? component : { ...component, children };
+  });
+}
+
 let surfaceCounter = 0;
 export function newSurfaceId() {
   surfaceCounter += 1;
@@ -198,9 +265,12 @@ export function newSurfaceId() {
 const UpdateEntry = z.object({ path: pointer, value: z.any() }).passthrough();
 
 // Normaliza la respuesta del modelo a una de dos formas:
-//   { kind: 'surface', message, title, folder, surface: {surfaceId, catalogId, components, dataModel}, ui }
-//   { kind: 'patch',   message, title, folder, surfaceId, updates: [{path, value}] }
-// `ui` es la proyección v1 (para clientes viejos y miniaturas). Nunca lanza.
+//   { kind: 'surface', message, title, folder, surface: {surfaceId, catalogId, components, dataModel}, ui, warnings }
+//   { kind: 'patch',   message, title, folder, surfaceId, updates: [{path, value}], warnings }
+// `ui` es la proyección v1 (para clientes viejos y miniaturas). `warnings` dice
+// qué se descartó o se reparó del JSON del modelo, para que el servidor lo
+// registre en vez de que el síntoma sea "la pantalla salió incompleta".
+// Nunca lanza.
 export function normalizeAgentReply(input, { activeSurfaceId, surfaceId } = {}) {
   const message = typeof input?.message === 'string' ? input.message : '';
   const folder = normalizeFolder(input?.folder ?? DEFAULT_FOLDER);
@@ -217,13 +287,16 @@ export function normalizeAgentReply(input, { activeSurfaceId, surfaceId } = {}) 
         title: deriveTitle(input, [], message),
         surfaceId: activeSurfaceId,
         updates,
+        warnings: { dropped: [], repairedControls: [], deadButtons: [] },
       };
     }
   }
 
   const tree = Array.isArray(input?.ui) ? input.ui : isObject(input?.ui) ? input.ui : [];
-  const components = flattenTree(tree, { rootId: ROOT_ID }).components.map(normalizeLiteralComponent);
-  const model = isObject(input?.dataModel) ? input.dataModel : {};
+  const flat = flattenTree(tree, { rootId: ROOT_ID });
+  const model = isObject(input?.dataModel) ? { ...input.dataModel } : {};
+  const warnings = { dropped: flat.dropped ?? [], repairedControls: [], deadButtons: [] };
+  const components = repairComponents(flat.components.map(normalizeLiteralComponent), model, warnings);
   const id = surfaceId ?? newSurfaceId();
   const surface = { surfaceId: id, catalogId: CATALOG_ID, sendDataModel: true, components, dataModel: model };
   return {
@@ -233,5 +306,6 @@ export function normalizeAgentReply(input, { activeSurfaceId, surfaceId } = {}) 
     title: deriveTitle(input, components, message),
     surface,
     ui: normalizeV1(toV1Components(surface)),
+    warnings,
   };
 }

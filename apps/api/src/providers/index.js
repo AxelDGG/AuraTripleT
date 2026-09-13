@@ -20,10 +20,13 @@ export function availableProviders() {
   return Object.keys(FACTORIES);
 }
 
-export function getLlmProvider(name = process.env.LLM_PROVIDER || DEFAULT_PROVIDER) {
+// `options` permite pedir el mismo proveedor con otro modelo (p. ej. la
+// extracción de memoria en un modelo distinto al del orquestador: en Groq el
+// límite de tokens por minuto es por modelo, así que no compiten entre sí).
+export function getLlmProvider(name = process.env.LLM_PROVIDER || DEFAULT_PROVIDER, options = {}) {
   const factory = FACTORIES[name];
   if (!factory) {
     throw new Error(`LLM_PROVIDER desconocido: "${name}". Opciones: ${availableProviders().join(', ')}.`);
   }
-  return factory();
+  return factory(options);
 }

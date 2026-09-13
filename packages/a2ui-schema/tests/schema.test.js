@@ -4,11 +4,10 @@ import {
   CHART_GUIDE,
   CHART_TYPES,
   COMPONENT_TYPES,
-  COMPONENT_CATALOG,
   DEFAULT_FOLDER,
   FOLDER_IDS,
-  chartsPromptSection,
-  componentsPromptSection,
+  chartsPromptSectionCompact,
+  componentSchemas,
   foldersPromptSection,
   normalizeComponent,
   normalizeFolder,
@@ -16,25 +15,15 @@ import {
   SPEC_VERSION,
 } from '../src/index.js';
 
-test('el catálogo define exactamente los 10 tipos del contrato', () => {
+test('el catálogo v1 define exactamente los 10 tipos del contrato', () => {
   assert.equal(SPEC_VERSION, 'norte-ui-spec/v1');
   assert.deepEqual(COMPONENT_TYPES, [
     'header', 'kpi_grid', 'balance_cards', 'chart', 'table',
     'transaction_list', 'form', 'alert', 'progress', 'text',
   ]);
-  assert.deepEqual(COMPONENT_CATALOG.map((c) => c.type), COMPONENT_TYPES);
-});
-
-test('la sección del prompt se genera del catálogo con el formato original', () => {
-  const section = componentsPromptSection();
-  const lines = section.split('\n');
-  assert.equal(lines[0], 'COMPONENTES DE UI DISPONIBLES (elige los que mejor comuniquen la respuesta, usualmente 2-5):');
-  assert.equal(lines.length, 11);
-  assert.equal(
-    lines[2],
-    '- {"type":"kpi_grid","items":[{"label":"...","value":"$48,250.75","delta":"+12%","trend":"up|down|neutral","icon":"💰"}]} — métricas clave (2-4 items).',
-  );
-  for (const type of COMPONENT_TYPES) assert.ok(section.includes(`"type":"${type}"`));
+  // Los tipos salen de los propios esquemas: no hay una segunda lista que
+  // desincronizar. El catálogo que lee el modelo es core/catalog-v2.js.
+  assert.deepEqual(COMPONENT_TYPES, Object.keys(componentSchemas));
 });
 
 test('normalizeUiSpec conserva message y ui válidos', () => {
@@ -192,12 +181,14 @@ test('el título se recorta a 80 caracteres con elipsis', () => {
 
 test('el catálogo de gráficas cubre el vocabulario de Bklit y el prompt lo expone', () => {
   assert.deepEqual(CHART_TYPES, CHART_GUIDE.map((c) => c.type));
-  const section = chartsPromptSection();
-  for (const chart of CHART_GUIDE) assert.ok(section.includes(`"${chart.type}"`), chart.type);
+  const section = chartsPromptSectionCompact();
+  for (const chart of CHART_GUIDE) assert.ok(section.includes(`${chart.type}: `), chart.type);
+  // La forma de datos que no es la de siempre se documenta desde el catálogo.
+  for (const chart of CHART_GUIDE.filter((c) => c.dataHint)) assert.ok(section.includes(chart.dataHint), chart.type);
   // Las tres decisiones que más se equivocan sin guía explícita.
-  assert.ok(section.includes('CÓMO ELEGIR LA GRÁFICA:'));
+  assert.ok(section.includes('meta o límite'));
   assert.ok(section.includes('gauge'));
-  assert.ok(section.includes('"target"'));
+  assert.ok(section.includes('target+targetLabel'));
 });
 
 test('los alias de chartType se traducen en vez de caer a bar', () => {

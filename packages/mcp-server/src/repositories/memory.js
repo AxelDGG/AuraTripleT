@@ -11,10 +11,11 @@
 //   Agregados (en Tiger salen de los continuous aggregates; aquí se calculan sobre la lista):
 //   spendingByCategory({ accountId?, months? }) · monthlyCashflow({ accountId? })
 //   spendingTrend({ accountId?, category?, months? })
+//   recurringPayments({ accountId?, months?, minMonths?, maxPerMonth?, maxDayStddev? })
 
 import * as bankSeed from '../data/mockData.js';
 import * as marketSeed from '../data/marketData.js';
-import { monthWindow, movingAverage, sampleStats } from './time-series.js';
+import { medianDisc, monthWindow, movingAverage, sampleStats } from './time-series.js';
 
 const FIRST_GENERATED_TX_ID = 1042;
 const TRANSFER_CATEGORY = 'Transferencias';
@@ -142,6 +143,62 @@ export function createMemoryRepository({ seed = bankSeed, market = marketSeed, n
         baseline: { months: baselineValues.length, average: round2(stats.average), stddev: round2(stats.stddev) },
         categories,
       };
+    },
+
+    // Cargos que se repiten mes con mes (la renta, el recibo de luz, una
+    // suscripción). No hay tabla de domiciliaciones en el banco simulado: el
+    // patrón se infiere de los movimientos, agrupando por cuenta + categoría +
+    // concepto. Los umbrales los fija quien llama (las tools); aquí solo se
+    // aplican, igual que en `tiger.recurringPayments`, que hace lo mismo en SQL.
+    async recurringPayments({ accountId, months = 6, minMonths = 3, maxPerMonth = 1.5, maxDayStddev = 3 } = {}) {
+      const window = monthWindow(now(), months);
+      const groups = new Map();
+      for (const t of state.transactions) {
+        if (t.amount >= 0) continue;
+        if (accountId && t.accountId !== accountId) continue;
+        const month = monthOf(t.date);
+        if (month < window.first || month > window.current) continue;
+        const key = `${t.accountId}|${t.category}|${t.description}`;
+        const group = groups.get(key) ?? {
+          accountId: t.accountId,
+          description: t.description,
+          category: t.category,
+          days: [],
+          months: new Set(),
+          total: 0,
+          lastDate: '',
+          lastAmount: 0,
+        };
+        const amount = -t.amount;
+        group.days.push(Number(t.date.slice(8, 10)));
+        group.months.add(month);
+        group.total += amount;
+        // El desempate por monto mantiene el resultado estable si dos cargos
+        // del mismo concepto cayeran el mismo día (en SQL es el mismo ORDER BY).
+        if (t.date > group.lastDate || (t.date === group.lastDate && amount > group.lastAmount)) {
+          group.lastDate = t.date;
+          group.lastAmount = amount;
+        }
+        groups.set(key, group);
+      }
+      return [...groups.values()]
+        .map((g) => ({
+          accountId: g.accountId,
+          description: g.description,
+          category: g.category,
+          occurrences: g.days.length,
+          monthsSeen: g.months.size,
+          dayOfMonth: medianDisc(g.days),
+          dayStddev: round2(sampleStats(g.days).stddev),
+          averageAmount: round2(g.total / g.days.length),
+          lastAmount: round2(g.lastAmount),
+          lastDate: g.lastDate,
+        }))
+        // Mensual de verdad: aparece en varios meses, no más de ~1 vez por mes
+        // (eso deja fuera el súper, que son varias compras al mes) y siempre
+        // cerca del mismo día (eso deja fuera el gasto ocasional).
+        .filter((g) => g.monthsSeen >= minMonths && g.occurrences <= g.monthsSeen * maxPerMonth && g.dayStddev <= maxDayStddev)
+        .sort((a, b) => a.dayOfMonth - b.dayOfMonth || a.description.localeCompare(b.description) || a.accountId.localeCompare(b.accountId));
     },
 
     async listInvestments() {

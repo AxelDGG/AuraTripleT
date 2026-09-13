@@ -36,11 +36,28 @@ const withTimeout = (promise, ms, label) => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 };
 
+// El historial es el único bloque del prompt que crece sin techo: son turnos
+// que manda el cliente. En la práctica pesa poco (del asistente solo viaja el
+// mensaje hablado), pero un mensaje pegado de 4000 caracteres por diez turnos
+// son ~11k tokens que tumban el presupuesto por minuto del orquestador. Se
+// recorta cada turno y se conservan los más recientes que quepan.
+const MAX_HISTORY_MESSAGE_CHARS = 600;
+const MAX_HISTORY_TOTAL_CHARS = 2500;
+
 function sanitizeHistory(history) {
   if (!Array.isArray(history)) return [];
-  return history
+  const clean = history
     .filter((m) => m && ALLOWED_HISTORY_ROLES.has(m.role) && typeof m.content === 'string')
-    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_CHARS) }));
+    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_HISTORY_MESSAGE_CHARS) }));
+
+  const kept = [];
+  let total = 0;
+  for (const message of clean.reverse()) {
+    total += message.content.length;
+    if (total > MAX_HISTORY_TOTAL_CHARS) break;
+    kept.unshift(message);
+  }
+  return kept;
 }
 
 function validateMessage(message) {

@@ -224,6 +224,58 @@ export function createTigerRepository({ connectionString = process.env.DATABASE_
       };
     },
 
+    // Cargos recurrentes: mismo contrato (y mismos umbrales) que
+    // `memory.recurringPayments`, resuelto en una sola pasada por la hypertable.
+    // No sale de un continuous aggregate porque agrupa por concepto, que los
+    // agregados no guardan; el índice (account_id, ts DESC) acota la ventana.
+    //
+    // `ts AT TIME ZONE 'UTC'` fija el día calendario en UTC, que es el mismo que
+    // usa mapTransaction al exponer `date`: si se dejara al timezone de la
+    // sesión, un cargo de las 12:00 en México podría caer en otro día.
+    async recurringPayments({ accountId, months = 6, minMonths = 3, maxPerMonth = 1.5, maxDayStddev = 3 } = {}) {
+      const window = monthWindow(new Date(), months);
+      const rows = await all(
+        `WITH movimientos AS (
+           SELECT account_id, description, category,
+                  (ts AT TIME ZONE 'UTC')::date AS dia,
+                  -amount AS monto
+             FROM transactions
+            WHERE amount < 0
+              AND ts >= $2 AND ts < $3
+              AND ($1::text IS NULL OR account_id = $1)
+         ), grupos AS (
+           SELECT account_id, description, category,
+                  count(*)::int AS occurrences,
+                  count(DISTINCT date_trunc('month', dia))::int AS months_seen,
+                  percentile_disc(0.5) WITHIN GROUP (ORDER BY extract(day FROM dia)::int)::int AS day_of_month,
+                  coalesce(stddev_samp(extract(day FROM dia)), 0)::float8 AS day_stddev,
+                  avg(monto)::float8 AS average_amount,
+                  to_char(max(dia), 'YYYY-MM-DD') AS last_date,
+                  (array_agg(monto ORDER BY dia DESC, monto DESC))[1]::float8 AS last_amount
+             FROM movimientos
+            GROUP BY 1, 2, 3
+         )
+         SELECT * FROM grupos
+          WHERE months_seen >= $4
+            AND occurrences <= months_seen * $5::numeric
+            AND day_stddev <= $6::numeric
+          ORDER BY day_of_month, description, account_id`,
+        [accountId ?? null, window.start, window.end, minMonths, maxPerMonth, maxDayStddev],
+      );
+      return rows.map((row) => ({
+        accountId: row.account_id,
+        description: row.description,
+        category: row.category,
+        occurrences: row.occurrences,
+        monthsSeen: row.months_seen,
+        dayOfMonth: row.day_of_month,
+        dayStddev: round2(row.day_stddev),
+        averageAmount: round2(row.average_amount),
+        lastAmount: round2(row.last_amount),
+        lastDate: row.last_date,
+      }));
+    },
+
     async listInvestments() {
       return (await all('SELECT * FROM investments ORDER BY id')).map((row) => ({
         id: row.id,

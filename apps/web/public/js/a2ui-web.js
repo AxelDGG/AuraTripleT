@@ -564,9 +564,9 @@ const COMPONENTS = {
     return card;
   },
   Skeleton(props) {
-    const variant = ['header', 'chart', 'cards', 'kpis', 'list', 'form', 'plan', 'text'].includes(props.variant) ? props.variant : 'text';
+    const variant = ['header', 'chart', 'cards', 'kpis', 'list', 'form', 'plan', 'calendar', 'text'].includes(props.variant) ? props.variant : 'text';
     const node = el('div', `a2-skeleton is-${variant}`);
-    const blocks = { header: 2, chart: 1, cards: 3, kpis: 3, list: 4, form: 3, plan: 4, text: 2 }[variant];
+    const blocks = { header: 2, chart: 1, cards: 3, kpis: 3, list: 4, form: 3, plan: 4, calendar: 2, text: 2 }[variant];
     for (let i = 0; i < blocks; i++) node.append(el('span', 'skeleton'));
     return node;
   },

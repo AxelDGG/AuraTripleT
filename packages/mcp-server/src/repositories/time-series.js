@@ -52,3 +52,13 @@ export function sampleStats(values) {
   const variance = values.reduce((s, v) => s + (v - average) ** 2, 0) / (values.length - 1);
   return { average, stddev: Math.sqrt(variance) };
 }
+
+// Mediana discreta: siempre devuelve uno de los valores de la muestra (nunca el
+// promedio de los dos centrales). Es el gemelo en JavaScript de
+// `percentile_disc(0.5) WITHIN GROUP (ORDER BY x)` de Postgres, que es como el
+// repositorio `tiger` saca el día del mes de un cargo recurrente.
+export function medianDisc(values) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor((sorted.length - 1) / 2)];
+}

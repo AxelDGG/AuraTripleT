@@ -5,13 +5,11 @@
 // y mobile) y conserva cualquier campo extra que no conozca.
 
 import { z } from 'zod';
+import { CHART_TYPE_IDS } from './catalog.js';
 
-// Tipos de gráfica. Tomamos el vocabulario de Bklit UI (bklit.com/docs) para
-// que el contrato nombre las gráficas igual que la librería de referencia.
-export const CHART_TYPES = [
-  'bar', 'stacked_bar', 'horizontal_bar', 'line', 'area', 'composed', 'pie', 'doughnut',
-  'ring', 'gauge', 'radar', 'scatter', 'funnel', 'heatmap', 'candlestick', 'profit_loss',
-];
+// Tipos de gráfica: los del catálogo, sin copiarlos. Una lista escrita a mano
+// aquí se desincronizaba del catálogo que lee el modelo.
+export const CHART_TYPES = CHART_TYPE_IDS;
 export const CHART_FORMATS = ['currency', 'number', 'percent', 'compact'];
 export const SERIES_KINDS = ['bar', 'line', 'area'];
 
@@ -244,3 +242,7 @@ export const componentSchemas = {
   progress: ProgressSchema,
   text: TextSchema,
 };
+
+// Los tipos de componente de Norte UI Spec v1, derivados de sus esquemas: son
+// los que el historial guardado puede traer y los que compat.js sabe elevar.
+export const COMPONENT_TYPES = Object.keys(componentSchemas);

@@ -6,67 +6,30 @@
 // envíos de la raíz hacia abajo. Si la persona sigue sobre la misma pantalla
 // ("¿y a 6 meses?"), el modelo puede responder con un patch: solo cambian
 // valores del dataModel y la superficie se reconfigura sin reconstruirse.
+//
+// El turno son dos llamadas con prompts distintos (ver prompt.js): la primera
+// elige herramientas y solo lleva sus esquemas; la segunda arma la interfaz con
+// los resultados ya en el turno del usuario y ya no manda las herramientas.
+// Cada mitad pesa ~3.5k tokens, así que mandarlas siempre las dos costaba el
+// doble contra el presupuesto por minuto del orquestador.
 
-import {
-  DEFAULT_FOLDER,
-  chartsPromptSectionCompact,
-  componentsPromptSectionV2,
-  foldersPromptSection,
-  newSurfaceId,
-} from '@norte/a2ui-schema';
-import { CONFIRMABLE_TOOLS, authorizedTools, describeAction } from './actions.js';
+import { DEFAULT_FOLDER, degradeComponents, newSurfaceId } from '@norte/a2ui-schema';
+import { CONFIRMABLE_TOOLS, authorizedTools, describeAction, toolForAction } from './actions.js';
 import { createA2uiEmitter, skeletonSurface } from './a2ui-stream.js';
 import { listToolsForLlm, callMcpTool } from './mcp-client.js';
+import { buildSystemPrompt, toolDataBlock, TOOL_PHASE, UI_PHASE } from './prompt.js';
 import { getLlmProvider } from './providers/index.js';
 import { parseAgentReply } from './ui-spec.js';
 
-const MAX_TOOL_ROUNDS = 6;
+// Intentos de la fase de interfaz: el primero y una reparación.
+const MAX_GENERATION_ATTEMPTS = 2;
+// Del JSON que no se pudo leer solo se reenvía el principio: identificarlo no
+// necesita las 2.5k tokens que puede ocupar la respuesta completa.
+const FAILED_REPLY_STUB_CHARS = 200;
 const MAX_HISTORY_MESSAGES = 10;
 const TOOL_RESULT_PREVIEW_CHARS = 220;
 // Cuánto del modelo de datos de la superficie activa se le muestra al modelo.
 const ACTIVE_MODEL_MAX_CHARS = 2500;
-
-const RESPONSE_SHAPE = `{"message":"<3 a 5 frases; ver MENSAJE HABLADO>","title":"<máx 6 palabras>","folder":"<id de carpeta>","dataModel":{<datos que los controles pueden cambiar>},"ui":[<árbol de componentes A2UI>]}`;
-
-const PATCH_SHAPE = `{"message":"<qué cambió y qué significa>","title":"<mismo título>","folder":"<misma carpeta>","surfaceId":"<id de la superficie activa>","updates":[{"path":"/ruta/en/dataModel","value":<nuevo valor>}]}`;
-
-// El prompt compite con las tools y sus resultados por el presupuesto de tokens
-// por minuto del orquestador (Groq on-demand: 8k), así que es deliberadamente
-// denso: firmas en vez de ejemplos, una regla por línea, sin repetir.
-function buildSystemPrompt({ clientComponents } = {}) {
-  return `Eres "Norte", el asistente de IA de Banorte que genera interfaces bancarias en tiempo real con el protocolo A2UI.
-
-REGLAS:
-1. Siempre en español mexicano, tono profesional y cercano.
-2. Usa las herramientas para obtener datos reales ANTES de responder; nunca inventes cifras. Si necesitas varias, llámalas todas en la misma ronda.
-3. Tu respuesta final es ÚNICAMENTE un JSON válido (sin texto alrededor ni markdown): ${RESPONSE_SHAPE}
-4. Si hay una SUPERFICIE ACTIVA y la persona solo cambia un valor de esa misma pantalla (otro plazo, monto o cuenta), NO la reconstruyas: responde con un patch ${PATCH_SHAPE}. Si la intención cambió, genera una superficie nueva con "ui".
-5. Si hay MEMORIA DEL CLIENTE, úsala para personalizar (plazo, cuenta, metas, cómo le gusta ver las cosas) sin recitarla; si la persona pide que recuerdes u olvides algo, confírmalo en el message. Si pregunta qué sabes de ella, cuéntaselo con esa lista.
-
-${componentsPromptSectionV2({ only: clientComponents })}
-
-${chartsPromptSectionCompact()}
-
-${foldersPromptSection()}
-"title": concreto y buscable ("Gastos de agosto", "Transferencia a Juan Pérez"), nunca genérico.
-
-MENSAJE HABLADO ("message"): se lee encima de la interfaz y se reproduce en voz alta. 3 a 5 frases de texto corrido (sin markdown, listas ni emojis): qué generaste, las cifras que importan con su contexto y una observación accionable. No recites lo que ya se ve: la gráfica muestra el qué, tú explicas el porqué. Montos en pesos, en palabras naturales.
-
-CÓMO ARMAR LA PANTALLA: empieza con Header; métricas en Grid de Kpi; cuentas en Grid o Row de AccountCard; Section o Card para bloques con sentido propio; Tabs para comparar escenarios; Calendar cuando lo que importa son fechas (pagos, citas, agenda) y DataTable cuando son varias filas comparables o con estado. Si la persona va a decidir algo (plazo, monto, escenario): pon el valor en dataModel, un control ligado a esa ruta y TODO lo derivado con "call" (amortize, totalInterest, schedule, currency…) para que se recalcule sin llamarte. Cierra con la acción natural: un Button con event o un Form. Los datos de las herramientas van al dataModel tal cual y la interfaz los referencia por ruta.
-
-FLUJOS:
-- Transferir dinero: genera un Form con action "transfer_funds" y campos fromAccountId (select de cuentas de débito), destino (select con beneficiarios BEN-xx y cuentas propias ACC-xx), amount (number) y concept (text); llena los selects con get_accounts y get_beneficiaries. NUNCA llames transfer_funds desde texto libre aunque tengas todos los datos: primero el formulario prellenado. El sistema solo la autoriza tras "[form:transfer_funds]" o "[action:transfer_funds]". Con éxito: Alert success con folio + AccountCard con el nuevo saldo.
-- Los mensajes "[action:nombre] {...}" y "[form:nombre] ..." son acciones sobre la interfaz: ejecuta la herramienta correspondiente con esos valores y muestra el resultado (Alert de éxito/error + datos actualizados).
-- Simular crédito sin datos completos: Form con action "simulate_credit" (productId select CRED-AUTO/CRED-HIPO/CRED-PERS, amount, months).
-- Agendar los pagos de las tarjetas (fechas límite, recordatorios, "que no se me pase"): llama get_card_payment_schedule (solo lectura) y arma la pantalla con dataModel {"agenda":{"payments":[...],"daysBefore":1,"date":"<fecha propuesta>"}}: un Calendar con events (un {date,label,kind:"payment"} por tarjeta, usando reminderDate) para que se vea junto a su mes, un DataTable con columns [{key:"name",label:"Tarjeta"},{key:"paymentDue",label:"Fecha límite",format:"date"},{key:"minimumPayment",label:"Pago mínimo",format:"currency",align:"right"},{key:"status",label:"Estado",format:"badge"}] (status: "Agendado" si scheduled es true, "Pendiente" si no) y un Button "Agendar en mi calendario" con event "confirm_schedule_card_payments" y context {"daysBefore":{"path":"/agenda/daysBefore"}}. Si quieren más anticipación, un ChoiceChips ligado a /agenda/daysBefore (1, 3, 5 días). Tras "[action:confirm_schedule_card_payments]" ejecuta schedule_card_payments y responde con Alert success diciendo cuántos recordatorios quedaron y en qué fechas.
-- Agendar un pago propio o una cita (monto, fecha y concepto que ellos eligen): dataModel {"schedule":{"date":"<hoy o la fecha que dijeron>","summary":"...","amount":...}}, un DatePicker ligado a /schedule/date (con min en la fecha de hoy) y un TextField para el concepto, y un Button "Agendar" con event "confirm_schedule_payment" y context {"summary":{"path":"/schedule/summary"},"start":{"path":"/schedule/date"},"end":{"path":"/schedule/date"}}. Tras "[action:confirm_schedule_payment]" ejecuta create_calendar_event. NUNCA llames create_calendar_event ni schedule_card_payments desde texto libre aunque tengas todos los datos: escriben en el calendario real y el sistema solo los autoriza tras la acción de la interfaz.
-- Ver la agenda o cruzarla con las finanzas ("¿qué tengo esta semana?", "¿me alcanza antes de mi próximo pago?"): list_calendar_events es de lectura libre; píntala con un Calendar (kind "personal" para los eventos propios y "payment" para los pagos) y, si ayuda, un DataTable al lado.
-- Pagar menos intereses, reestructurar o diferir la tarjeta: llama get_card_restructure_options y arma el plan con dataModel {"plan":{"accountId","balance","annualRate","months","options"}}, un Slider (o ChoiceChips) ligado a /plan/months, Kpi derivados con amortize, totalInterest y effectiveAnnual, una Chart line con schedule (field "balance") y scheduleLabels, y un Button "Aplicar plan" con event "confirm_restructure" y context {"accountId","months":{"path":"/plan/months"}}. Tras "[action:confirm_restructure]" ejecuta restructure_card_debt y muestra Alert success con el folio y el nuevo pago mensual.
-
-QUÉ GRÁFICA POR HERRAMIENTA: get_spending_by_category → doughnut (≤6 categorías) o horizontal_bar ordenada; get_monthly_cashflow → composed (barras ingreso/gasto + línea neto) o profit_loss si el neto cruza cero; get_spending_trend (¿gasto más que antes?, patrones por mes) → line con labels = series.month y datasets spent / movingAvg, Kpi con deltaPct vs baseline.average y el mes cerrado, y Table o Text con topChanges (categoría, delta); get_transactions → TransactionList (heatmap o scatter si preguntan por patrones); get_portfolio / get_investments → doughnut de composición y horizontal_bar de rendimiento; get_portfolio_performance → area; uso de línea de crédito, metas o salud financiera → gauge o ring con value y max. Decide el chartType antes de escribir los datos y no repitas una cifra en dos gráficas.
-
-Los montos negativos son cargos.`;
-}
 
 const REPAIR_PROMPT =
   'Tu respuesta no fue JSON válido. Responde ÚNICAMENTE con el objeto JSON {"message":"...","title":"...","folder":"...","dataModel":{...},"ui":[...]} sin ningún texto adicional.';
@@ -89,6 +52,20 @@ function buildFallbackReply() {
   };
 }
 
+// Lo que el normalizador tuvo que descartar o reparar del JSON del modelo, más
+// lo que hubo que degradar para este cliente. Sin esta línea el único síntoma
+// de un componente inventado es "la pantalla salió incompleta".
+function logSurfaceWarnings(surfaceId, warnings, notes) {
+  const parts = [];
+  if (warnings?.dropped?.length) parts.push(`componentes desconocidos descartados: ${warnings.dropped.join(', ')}`);
+  if (warnings?.repairedControls?.length) {
+    parts.push(`controles sin ruta reparados: ${warnings.repairedControls.map((c) => `${c.component}→${c.path}`).join(', ')}`);
+  }
+  if (warnings?.deadButtons?.length) parts.push(`botones sin acción quitados: ${warnings.deadButtons.length}`);
+  if (notes?.length) parts.push(`degradados para este cliente: ${notes.map((n) => `${n.from}→${n.to ?? 'quitado'}`).join(', ')}`);
+  if (parts.length) console.warn(`[a2ui] superficie ${surfaceId}: ${parts.join(' · ')}`);
+}
+
 function parseToolArgs(call) {
   try {
     return JSON.parse(call.function.arguments || '{}');
@@ -97,10 +74,12 @@ function parseToolArgs(call) {
   }
 }
 
-// Ejecuta las tool calls de una ronda vía MCP y devuelve los mensajes `tool`
-// que el modelo recibe en la siguiente ronda.
+// Ejecuta las tool calls vía MCP y devuelve {name, content} por herramienta.
+// Los resultados no viajan como mensajes `tool`: la fase de interfaz los recibe
+// como texto, así no hay que declarar las herramientas otra vez para que el
+// proveedor acepte la conversación.
 async function executeToolCalls(toolCalls, { authorized, emit }) {
-  const toolMessages = [];
+  const results = [];
   for (const call of toolCalls) {
     const name = call.function.name;
     let args = parseToolArgs(call);
@@ -117,9 +96,9 @@ async function executeToolCalls(toolCalls, { authorized, emit }) {
       resultText = JSON.stringify({ error: String(err.message || err) });
     }
     emit({ type: 'tool_result', name, preview: resultText.slice(0, TOOL_RESULT_PREVIEW_CHARS) });
-    toolMessages.push({ role: 'tool', tool_call_id: call.id, name, content: resultText });
+    results.push({ name, content: resultText });
   }
-  return toolMessages;
+  return results;
 }
 
 // Resumen del modelo de datos para el prompt: las listas largas (opciones de
@@ -190,86 +169,133 @@ export async function runAgent({
   const authorized = authorizedTools({ userMessage, action });
   const a2ui = createA2uiEmitter(emit);
   const surfaceId = newSurfaceId();
+  const clientComponents = client?.components;
   let skeletonShown = false;
-
-  emit({ type: 'status', text: 'Conectando con herramientas bancarias (MCP)...' });
-  const tools = await listToolsForLlm();
-
-  const memory = memoryMessage(memories);
-  const messages = [
-    { role: 'system', content: buildSystemPrompt({ clientComponents: client?.components }) },
-    ...(memory ? [memory] : []),
-    ...history.slice(-MAX_HISTORY_MESSAGES),
-  ];
-  const active = activeSurfaceMessage(surface);
-  if (active) messages.push(active);
-  messages.push({ role: 'user', content: action ? describeAction(action) : userMessage });
-
-  emit({ type: 'status', text: 'Analizando tu solicitud...' });
 
   const streamOptions = { delayMs: streamDelayMs, signal };
   if (streamOptions.delayMs === undefined) delete streamOptions.delayMs;
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    if (signal?.aborted) return null;
-    const assistantMsg = await provider.chat({
-      messages,
-      tools,
-      onRateLimit: (waitSeconds) =>
-        emit({ type: 'status', text: `Modelo saturado, reintentando en ${Math.ceil(waitSeconds)}s…` }),
-    });
+  // El contexto que las dos fases comparten: lo que Norte recuerda, la
+  // conversación reciente y la pantalla que la persona tiene enfrente.
+  const memory = memoryMessage(memories);
+  const active = activeSurfaceMessage(surface);
+  const userTurn = action ? describeAction(action) : userMessage;
+  const actionTool = action ? toolForAction(action) : null;
+  const shared = [...(memory ? [memory] : []), ...history.slice(-MAX_HISTORY_MESSAGES), ...(active ? [active] : [])];
 
-    if (assistantMsg.tool_calls?.length) {
-      // Ya sabemos qué tipo de pantalla viene: el esqueleto sale antes de que
-      // regrese el primer dato. Un patch sobre la superficie activa no lo
-      // necesita, pero todavía no sabemos si será patch; se pinta igual y, si
-      // termina siendo patch, se retira.
-      if (!skeletonShown) {
-        a2ui.createSurface(skeletonSurface(surfaceId, assistantMsg.tool_calls.map((c) => c.function.name)));
-        skeletonShown = true;
-      }
-      messages.push(assistantMsg);
-      messages.push(...(await executeToolCalls(assistantMsg.tool_calls, { authorized, emit })));
-      emit({ type: 'status', text: 'Generando tu interfaz...' });
-      continue;
-    }
-
-    const reply = parseAgentReply(assistantMsg.content, { activeSurfaceId: surface?.surfaceId, surfaceId });
-    if (reply) {
-      if (reply.kind === 'patch') {
-        if (skeletonShown) a2ui.deleteSurface({ surfaceId });
-        a2ui.streamPatch(reply.surfaceId, reply.updates);
-        emit({
-          type: 'ui',
-          patch: true,
-          surfaceId: reply.surfaceId,
-          updates: reply.updates,
-          message: reply.message,
-          title: reply.title,
-          folder: reply.folder,
-          ui: [],
-        });
-        return reply;
-      }
-      await a2ui.streamSurface(reply.surface, { skeletonShown, ...streamOptions });
+  const emitReply = (reply) => {
+    if (reply.kind === 'patch') {
+      logSurfaceWarnings(reply.surfaceId, reply.warnings, null);
+      if (skeletonShown) a2ui.deleteSurface({ surfaceId });
+      a2ui.streamPatch(reply.surfaceId, reply.updates);
       emit({
         type: 'ui',
-        surfaceId: reply.surface.surfaceId,
-        surface: reply.surface,
+        patch: true,
+        surfaceId: reply.surfaceId,
+        updates: reply.updates,
         message: reply.message,
         title: reply.title,
         folder: reply.folder,
-        ui: reply.ui,
+        ui: [],
       });
       return reply;
     }
+    // Segunda mitad de la negociación de catálogo: aunque el prompt ya solo
+    // le ofreció al modelo lo que este cliente sabe pintar, la superficie se
+    // adapta antes de salir. Así un cliente parcial nunca recibe un hueco.
+    const degraded = degradeComponents(reply.surface.components, clientComponents);
+    reply.surface.components = degraded.components;
+    logSurfaceWarnings(reply.surface.surfaceId, reply.warnings, degraded.notes);
+    return reply;
+  };
 
-    // Reintento de reparación: pedir solo el JSON.
-    messages.push(assistantMsg);
-    messages.push({ role: 'user', content: REPAIR_PROMPT });
+  const onRateLimit = (waitSeconds) =>
+    emit({ type: 'status', text: `Modelo saturado, reintentando en ${Math.ceil(waitSeconds)}s…` });
+
+  emit({ type: 'status', text: 'Conectando con herramientas bancarias (MCP)...' });
+  const tools = await listToolsForLlm();
+  if (signal?.aborted) return null;
+
+  emit({ type: 'status', text: 'Analizando tu solicitud...' });
+
+  // ---------- fase 1: qué datos hacen falta ----------
+  //
+  // Una sola llamada: el prompt le pide que traiga TODO lo que necesite de una
+  // vez, porque en la fase de interfaz ya no se mandan las herramientas. Si el
+  // turno solo mueve un valor de la pantalla activa, aquí mismo sale el patch y
+  // el turno termina en una llamada.
+  const toolPhase = await provider.chat({
+    messages: [
+      {
+        role: 'system',
+        content: buildSystemPrompt({ phase: TOOL_PHASE, userText: userTurn, hintTools: actionTool ? [actionTool] : null }),
+      },
+      ...shared,
+      { role: 'user', content: userTurn },
+    ],
+    tools,
+    onRateLimit,
+  });
+  if (signal?.aborted) return null;
+
+  let results = [];
+  if (toolPhase.tool_calls?.length) {
+    // Ya sabemos qué tipo de pantalla viene: el esqueleto sale antes de que
+    // regrese el primer dato.
+    a2ui.createSurface(skeletonSurface(surfaceId, toolPhase.tool_calls.map((c) => c.function.name)));
+    skeletonShown = true;
+    results = await executeToolCalls(toolPhase.tool_calls, { authorized, emit });
+    emit({ type: 'status', text: 'Generando tu interfaz...' });
+  } else {
+    // Sin herramientas el modelo pudo haber resuelto ya un patch sobre la
+    // superficie activa (no necesita catálogo ni datos nuevos): se acepta y no
+    // se paga la segunda llamada.
+    const early = parseAgentReply(toolPhase.content, { activeSurfaceId: surface?.surfaceId, surfaceId });
+    if (early?.kind === 'patch') return emitReply(early);
+  }
+
+  // ---------- fase 2: armar la interfaz ----------
+  //
+  // Sin `tools` (~3.6k tokens) y con el prompt de interfaz, que solo incluye el
+  // flujo y la guía de gráficas de las herramientas que de verdad corrieron.
+  const calledTools = results.map((r) => r.name);
+  const uiMessages = [
+    { role: 'system', content: buildSystemPrompt({ clientComponents, phase: UI_PHASE, calledTools }) },
+    ...shared,
+    { role: 'user', content: `${userTurn}${toolDataBlock(results)}` },
+  ];
+
+  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+    if (signal?.aborted) return null;
+    const assistantMsg = await provider.chat({ messages: uiMessages, onRateLimit });
+    if (signal?.aborted) return null;
+
+    const reply = parseAgentReply(assistantMsg.content, { activeSurfaceId: surface?.surfaceId, surfaceId });
+    if (reply) {
+      const ready = emitReply(reply);
+      if (ready.kind === 'patch') return ready;
+      await a2ui.streamSurface(ready.surface, { skeletonShown, ...streamOptions });
+      emit({
+        type: 'ui',
+        surfaceId: ready.surface.surfaceId,
+        surface: ready.surface,
+        message: ready.message,
+        title: ready.title,
+        folder: ready.folder,
+        ui: ready.ui,
+      });
+      return ready;
+    }
+
+    // Reintento de reparación: pedir solo el JSON. Del intento fallido se
+    // reenvía un muñón, no el texto completo: puede ser toda la respuesta
+    // (hasta 2.5k tokens) y para el modelo basta con ver por dónde empezó.
+    uiMessages.push({ role: 'assistant', content: String(assistantMsg.content ?? '').slice(0, FAILED_REPLY_STUB_CHARS) });
+    uiMessages.push({ role: 'user', content: REPAIR_PROMPT });
   }
 
   const fallback = buildFallbackReply();
+  if (skeletonShown) a2ui.deleteSurface({ surfaceId });
   await a2ui.streamSurface(fallback.surface, { skeletonShown: false, ...streamOptions });
   emit({ type: 'ui', ...fallback, kind: undefined, surfaceId: fallback.surface.surfaceId, fallback: true });
   return fallback;

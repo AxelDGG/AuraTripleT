@@ -21,6 +21,10 @@ const isTemplateRef = (value) => isObject(value) && typeof value.path === 'strin
 export function flattenTree(input, { rootId = ROOT_ID } = {}) {
   const components = [];
   const used = new Set();
+  // Nombres que el modelo inventó y que no se pudieron mapear: se descartan,
+  // pero se devuelven para que el servidor los pueda registrar. Un hueco en la
+  // pantalla sin rastro en el log es lo más caro de diagnosticar.
+  const dropped = [];
   let counter = 0;
 
   const claimId = (wanted, hint) => {
@@ -47,7 +51,11 @@ export function flattenTree(input, { rootId = ROOT_ID } = {}) {
       if (!current) return null;
     }
     const name = canonicalComponentName(current.component ?? current.type);
-    if (!name) return null;
+    if (!name) {
+      const unknown = current.component ?? current.type;
+      if (typeof unknown === 'string' && unknown.trim()) dropped.push(unknown.trim());
+      return null;
+    }
 
     const id = claimId(forcedId ?? current.id, name);
     const copy = { ...current, id, component: name };
@@ -140,7 +148,7 @@ export function flattenTree(input, { rootId = ROOT_ID } = {}) {
     }
   }
 
-  return { rootId, components };
+  return { rootId, components, dropped };
 }
 
 // Ids de hijos directos de un componente ya aplanado (sin las plantillas).

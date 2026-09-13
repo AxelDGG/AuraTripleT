@@ -110,6 +110,13 @@ export function authorizedTools({ userMessage = '', action = null } = {}) {
   return authorized;
 }
 
+// Herramienta que le toca ejecutar a un evento de la interfaz. El agente la usa
+// como señal exacta para elegir qué flujo del prompt mandar en la fase de
+// herramientas, donde todavía no sabe qué se va a llamar.
+export function toolForAction(action) {
+  return ACTION_EVENTS[action?.event?.name ?? '']?.tool ?? null;
+}
+
 // Texto con el que el evento entra a la conversación del modelo.
 export function describeAction(action) {
   const name = action?.event?.name ?? 'accion';

@@ -66,6 +66,7 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 | `get_customer_profile` | Perfil del cliente |
 | `get_accounts` · `get_transactions` | Cuentas y movimientos |
 | `get_spending_by_category` · `get_monthly_cashflow` | Análisis de gastos y flujo |
+| `get_recurring_payments` | Pagos fijos inferidos de los movimientos: día del mes, monto promedio, próxima fecha y total mensual |
 | `get_investments` | Pagarés y fondos Banorte |
 | `get_exchange_rates` · `get_beneficiaries` | Divisas y beneficiarios SPEI |
 | `list_credit_products` · `simulate_credit` | Catálogo y simulación con amortización real |
@@ -96,7 +97,8 @@ funnel y heatmap. La paleta vive en `css/tokens.css` como `--chart-1..8`, `--cha
 
 El catálogo de `packages/a2ui-schema/src/core/catalog-v2.js` (componentes) y `src/catalog.js` (gráficas) es la única fuente de verdad: de ahí
 salen tanto el esquema que valida la respuesta del modelo como la sección del prompt que le
-explica cuándo usar cada gráfica.
+explica cuándo usar cada gráfica. Tests de paridad revisan que los dos renderers pinten todo el
+catálogo y que cada gráfica documentada exista.
 
 ## Cómo correrlo
 
@@ -160,9 +162,10 @@ packages/mcp-server/           @norte/mcp-server
   src/data/marketData.js       Posiciones, watchlist y generador determinista de series
   tests/                       tools · repositories
 packages/a2ui-schema/          @norte/a2ui-schema
-  src/core/                    Núcleo A2UI sin dependencias: pointer · binding · functions · catalog-v2 · flatten · compat · runtime
+  src/core/                    Núcleo A2UI sin dependencias: pointer · binding · functions · catalog-v2 · flatten · degrade · compat · runtime
   src/messages.js              Mensajes A2UI (zod), normalizeAgentReply, parseUserAction
   src/catalog.js · schemas.js  Catálogo de gráficas y esquemas v1 (normalización de la parte literal)
+  src/core/degrade.js          La superficie, adaptada a lo que cada cliente sabe pintar
   src/index.js                 Un solo punto de entrada para API y tests
 scripts/sync-a2ui-core.js      Copia el núcleo a apps/mobile/src/a2ui/core (test de sincronía)
 ```

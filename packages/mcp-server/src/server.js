@@ -11,6 +11,7 @@ import { createRepository } from './repositories/index.js';
 import { createBankingTools } from './tools.js';
 import { getAuthorizedClient, isGoogleConfigured } from './google/auth.js';
 import { createCalendarTools } from './calendarTools.js';
+import { booleanArg, numberArg } from './arg-schemas.js';
 
 // Si el proceso ya trae el .env cargado (p.ej. lanzado por apps/api) esto no
 // pisa nada; permite además correr este server solo (`npm run mcp`) o el
@@ -50,7 +51,7 @@ server.tool(
   {
     accountId: z.string().nullish().describe('ID de cuenta, ej. ACC-001'),
     category: z.string().nullish().describe('Categoría, ej. Restaurantes, Supermercado'),
-    limit: z.number().nullish().describe('Máximo de movimientos a devolver (default 15)'),
+    limit: numberArg().nullish().describe('Máximo de movimientos a devolver (default 15)'),
   },
   async (args) => jsonResult(await tools.getTransactions(args)),
 );
@@ -60,7 +61,7 @@ server.tool(
   'Resume los gastos agrupados por categoría (para gráficas de análisis de gastos). Sale de un agregado mensual que la base mantiene al día.',
   {
     accountId: z.string().nullish().describe('Limitar a una cuenta específica'),
-    months: z.number().nullish().describe('Solo los últimos N meses calendario (3 a 12), incluido el actual. Si se omite, todo el historial'),
+    months: numberArg().nullish().describe('Solo los últimos N meses calendario (3 a 12), incluido el actual. Si se omite, todo el historial'),
   },
   async (args) => jsonResult(await tools.getSpendingByCategory(args)),
 );
@@ -71,7 +72,7 @@ server.tool(
   {
     accountId: z.string().nullish().describe('Limitar a una cuenta, ej. ACC-001'),
     category: z.string().nullish().describe('Limitar a una categoría, ej. Restaurantes'),
-    months: z.number().nullish().describe('Meses de la ventana, 3 a 12 (default 6), terminando en el mes actual'),
+    months: numberArg().nullish().describe('Meses de la ventana, 3 a 12 (default 6), terminando en el mes actual'),
   },
   async (args) => jsonResult(await tools.getSpendingTrend(args)),
 );
@@ -81,6 +82,16 @@ server.tool(
   'Devuelve ingresos vs gastos por mes (para gráficas de flujo de efectivo).',
   {},
   async () => jsonResult(await tools.getMonthlyCashflow()),
+);
+
+server.tool(
+  'get_recurring_payments',
+  'Pagos fijos que se repiten cada mes (renta, luz, internet, suscripciones, gimnasio): qué día del mes cae cada uno, cuánto se paga en promedio, cuándo toca la próxima vez y cuánto suman al mes. Se infieren de los movimientos, no hay tabla de domiciliaciones. Para "¿qué pagos se me vienen?", "¿cuánto se me va en fijos?" o "¿qué día pago la luz?".',
+  {
+    accountId: z.string().nullish().describe('Limitar a una cuenta, ej. ACC-001'),
+    months: numberArg().nullish().describe('Meses de historial a revisar, 3 a 12 (default 6)'),
+  },
+  async (args) => jsonResult(await tools.getRecurringPayments(args)),
 );
 
 server.tool(
@@ -116,8 +127,8 @@ server.tool(
   'Simula un crédito: calcula tasa, pago mensual e intereses totales.',
   {
     productId: z.string().describe('CRED-AUTO, CRED-HIPO o CRED-PERS'),
-    amount: z.number().describe('Monto solicitado en MXN'),
-    months: z.number().describe('Plazo en meses'),
+    amount: numberArg().describe('Monto solicitado en MXN'),
+    months: numberArg().describe('Plazo en meses'),
   },
   async (args) => jsonResult(await tools.simulateCredit(args)),
 );
@@ -129,9 +140,9 @@ server.tool(
     fromAccountId: z.string().describe('Cuenta origen, ej. ACC-001'),
     toBeneficiaryId: z.string().nullish().describe('Beneficiario destino, ej. BEN-01'),
     toAccountId: z.string().nullish().describe('Cuenta propia destino, ej. ACC-002'),
-    amount: z.number().describe('Monto en MXN'),
+    amount: numberArg().describe('Monto en MXN'),
     concept: z.string().nullish().describe('Concepto del pago'),
-    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde el formulario; no lo inventes'),
+    confirmed: booleanArg().nullish().describe('Lo establece el sistema cuando el usuario confirma desde el formulario; no lo inventes'),
   },
   async (args) => jsonResult(await tools.transferFunds(args)),
 );
@@ -150,8 +161,8 @@ server.tool(
   'Aplica la reestructura del saldo de la tarjeta al plazo elegido (simulada). Requiere confirmación previa del usuario desde el botón "Aplicar plan".',
   {
     accountId: z.string().nullish().describe('Tarjeta, ej. ACC-003'),
-    months: z.number().describe('Plazo elegido: 6, 12, 18, 24 o 36'),
-    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde el botón; no lo inventes'),
+    months: numberArg().describe('Plazo elegido: 6, 12, 18, 24 o 36'),
+    confirmed: booleanArg().nullish().describe('Lo establece el sistema cuando el usuario confirma desde el botón; no lo inventes'),
   },
   async (args) => jsonResult(await tools.restructureCardDebt(args)),
 );
@@ -189,7 +200,7 @@ server.tool(
     timeMin: z.string().nullish().describe('ISO 8601, default ahora'),
     timeMax: z.string().nullish().describe('ISO 8601, opcional'),
     query: z.string().nullish().describe('Texto libre para filtrar eventos'),
-    maxResults: z.number().nullish().describe('Máximo de eventos a devolver (default 10)'),
+    maxResults: numberArg().nullish().describe('Máximo de eventos a devolver (default 10)'),
   },
   async (args) => jsonResult(await calendarTools.listEvents(args)),
 );
@@ -206,7 +217,7 @@ server.tool(
     end: z.string().describe('Fin en ISO 8601 o YYYY-MM-DD'),
     timeZone: z.string().nullish().describe('Default America/Mexico_City'),
     attendees: z.array(z.string()).nullish().describe('Correos de invitados'),
-    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
+    confirmed: booleanArg().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.createEvent(args)),
 );
@@ -216,7 +227,7 @@ server.tool(
   'Próximas fechas de pago de las tarjetas de crédito del cliente y si ya tienen recordatorio en Google Calendar. Solo lectura: úsala para armar la interfaz antes de agendar nada.',
   {
     calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
-    daysBefore: z.number().nullish().describe('Días de anticipación del recordatorio (default 1)'),
+    daysBefore: numberArg().nullish().describe('Días de anticipación del recordatorio (default 1)'),
   },
   async (args) => jsonResult(await calendarTools.getCardPaymentSchedule(args)),
 );
@@ -227,8 +238,8 @@ server.tool(
   {
     calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
     accountId: z.string().nullish().describe('Limitar a una tarjeta, ej. ACC-003. Sin esto agenda todas'),
-    daysBefore: z.number().nullish().describe('Días de anticipación del recordatorio (default 1)'),
-    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
+    daysBefore: numberArg().nullish().describe('Días de anticipación del recordatorio (default 1)'),
+    confirmed: booleanArg().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.scheduleCardPayments(args)),
 );
@@ -245,7 +256,7 @@ server.tool(
     start: z.string().nullish().describe('ISO 8601 o YYYY-MM-DD'),
     end: z.string().nullish().describe('ISO 8601 o YYYY-MM-DD'),
     timeZone: z.string().nullish(),
-    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
+    confirmed: booleanArg().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.updateEvent(args)),
 );
@@ -256,7 +267,7 @@ server.tool(
   {
     calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
     eventId: z.string().describe('ID del evento a eliminar'),
-    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
+    confirmed: booleanArg().nullish().describe('Lo establece el sistema cuando el usuario confirma desde la interfaz; no lo inventes'),
   },
   async (args) => jsonResult(await calendarTools.deleteEvent(args)),
 );

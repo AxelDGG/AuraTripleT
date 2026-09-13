@@ -91,6 +91,24 @@ test('chat reintenta ante 429 respetando el "try again in Ns" y avisa por onRate
   assert.deepEqual(notices, [[3.5, 1]]);
 });
 
+// El JSON crudo de Groq no debe llegar a la pantalla: agotados los reintentos
+// del límite por minuto, el mensaje tiene que ser el legible.
+test('chat avisa con mensaje legible cuando el 429 sobrevive a todos los reintentos', async () => {
+  const tpm = 'Rate limit reached for model `openai/gpt-oss-120b` on tokens per minute (TPM): Limit 8000, Used 5561, Requested 3212. Please try again in 5.79s.';
+  const { impl, calls } = fakeFetch(Array.from({ length: 12 }, () => jsonResponse(429, tpm)));
+  const provider = createGroqProvider({ apiKey: 'k', fetchImpl: impl, sleep: noSleep });
+  await assert.rejects(
+    () => provider.chat({ messages: [], tools: [] }),
+    (err) => {
+      assert.match(err.message, /límite de velocidad/);
+      assert.doesNotMatch(err.message, /Rate limit reached for model/);
+      return true;
+    },
+  );
+  // Reintentó varias veces antes de rendirse, sin quedarse en bucle.
+  assert.ok(calls.length > 1 && calls.length <= 12);
+});
+
 test('chat rescata la UI cuando Groq responde 400 con failed_generation', async () => {
   const { impl } = fakeFetch([
     jsonResponse(400, { error: { code: 'tool_use_failed', failed_generation: '{"message":"r","ui":[{"type":"text","markdown":"x"}]}' } }),

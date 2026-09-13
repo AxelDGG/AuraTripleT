@@ -64,6 +64,8 @@ await same('spendingByCategory últimos 3 meses, ACC-001', (r) => r.spendingByCa
 await same('monthlyCashflow', (r) => r.monthlyCashflow());
 await same('spendingTrend 6 meses', (r) => r.spendingTrend({ months: 6 }));
 await same('spendingTrend Restaurantes', (r) => r.spendingTrend({ category: 'restaurantes', months: 4 }));
+await same('recurringPayments 6 meses', (r) => r.recurringPayments({ months: 6 }));
+await same('recurringPayments ACC-003', (r) => r.recurringPayments({ accountId: 'ACC-003', months: 6 }));
 await check('listExchangeRates.updatedAt es el mismo instante', async () => {
   const [t, m] = [await tiger.listExchangeRates(), await memory.listExchangeRates()];
   assert.equal(new Date(t.updatedAt).getTime(), new Date(m.updatedAt).getTime());

@@ -50,6 +50,16 @@ function shiftIsoDate(iso, days) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+// Anticipación del recordatorio. El modelo manda el campo vacío como null y
+// Number(null) es 0 (finito), así que el default se perdía y el recordatorio
+// caía el mismo día del vencimiento: null/undefined cuentan como "no lo dijo".
+const DEFAULT_DAYS_BEFORE = 1;
+function resolveDaysBefore(value) {
+  if (value === null || value === undefined || value === '') return DEFAULT_DAYS_BEFORE;
+  const days = Number(value);
+  return Number.isFinite(days) && days >= 0 ? days : DEFAULT_DAYS_BEFORE;
+}
+
 export function createCalendarTools({ bankingTools } = {}) {
   async function listEvents({ calendarId, timeMin, timeMax, query, maxResults } = {}) {
     const calendar = await calendarClient();
@@ -184,13 +194,32 @@ async function deleteEvent({ calendarId, eventId, confirmed } = {}) {
   // Es lo que alimenta el Calendar y el DataTable de la interfaz.
   async function getCardPaymentSchedule({ calendarId, daysBefore } = {}) {
     if (!bankingTools) return { error: 'Las herramientas bancarias no están disponibles en este servidor.' };
-    const offset = Number.isFinite(Number(daysBefore)) ? Number(daysBefore) : 1;
+    const offset = resolveDaysBefore(daysBefore);
     const cards = (await bankingTools.getAccounts()).filter((a) => a.type === 'credit' && a.paymentDue);
-    const calendar = calendarClient();
     const id = calendarId || DEFAULT_CALENDAR_ID;
     const payments = [];
+    // Consultar el calendario es accesorio para esta lectura: si el token expiró
+    // o Google falla, las fechas de pago se siguen mostrando (sin el estado
+    // "Agendado") en vez de tumbar toda la interfaz. Construir el cliente cuenta
+    // como parte de esa consulta: un token ilegible tampoco debe tumbarla.
+    let calendarFailed = false;
+    let calendar = null;
+    try {
+      calendar = await calendarClient();
+    } catch (err) {
+      calendarFailed = true;
+      console.error('[calendar] no se pudo autorizar el acceso:', err?.message ?? err);
+    }
     for (const card of cards) {
-      const reminder = calendar ? await findReminder(calendar, id, card) : null;
+      let reminder = null;
+      if (calendar && !calendarFailed) {
+        try {
+          reminder = await findReminder(calendar, id, card);
+        } catch (err) {
+          calendarFailed = true;
+          console.error('[calendar] no se pudo leer el recordatorio:', err?.message ?? err);
+        }
+      }
       payments.push({
         accountId: card.id,
         name: card.name,
@@ -204,17 +233,17 @@ async function deleteEvent({ calendarId, eventId, confirmed } = {}) {
         htmlLink: reminder?.htmlLink ?? null,
       });
     }
-    return { daysBefore: offset, calendarConnected: Boolean(calendar), payments };
+    return { daysBefore: offset, calendarConnected: Boolean(calendar) && !calendarFailed, payments };
   }
 
   // Escritura confirmable: agenda (o repara) el recordatorio de cada tarjeta.
   // Es idempotente: si el evento ya existe para esa tarjeta no lo duplica.
   async function scheduleCardPayments({ calendarId, accountId, daysBefore, confirmed } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (confirmed !== true) return NOT_CONFIRMED_ERROR;
     if (!bankingTools) return { error: 'Las herramientas bancarias no están disponibles en este servidor.' };
-    const offset = Number.isFinite(Number(daysBefore)) ? Number(daysBefore) : 1;
+    const offset = resolveDaysBefore(daysBefore);
     const id = calendarId || DEFAULT_CALENDAR_ID;
     const cards = (await bankingTools.getAccounts()).filter(
       (a) => a.type === 'credit' && a.paymentDue && (!accountId || a.id === accountId),

@@ -55,6 +55,16 @@ minuto reciben `429`. Respuesta:
 4. **Para la demo, el Dev Tier de Groq (o un segundo API key) es obligatorio** si se van a encadenar
    turnos en menos de un minuto. Sin eso, hay que dejar ~60 s entre la pregunta y "Aplicar plan".
 
+**Segunda medición: el turno se parte en dos prompts.** Con 24 tools los esquemas ya pesaban ~3 600
+tokens y el prompt otros ~3 600, y las dos llamadas de un turno pagaban las dos cosas: ~15 000 tokens
+por pregunta, casi el doble del presupuesto por minuto. Pero cada llamada usa solo una mitad: la
+primera elige herramientas (no necesita el catálogo de componentes ni cómo se arma una pantalla) y la
+segunda arma la interfaz (no necesita los esquemas ni las reglas de tool calling). Desde `prompt.js`
+cada fase recibe su mitad, los resultados de las herramientas entran a la segunda como texto en el
+turno del usuario (no como mensajes `tool`, que obligarían a declarar las herramientas otra vez), y
+los bloques de FLUJOS y de qué gráfica usar se eligen por las herramientas que de verdad corrieron.
+El turno bajó a ~7 300 tokens, **−52%**, sin quitarle una sola regla al modelo.
+
 **Agregado después de medir.** Gemini (`gemini-3.6-flash`, API nativa `generateContent` con function
 calling) como segundo orquestador, `LLM_PROVIDER=gemini`. Su tier gratis se mide en requests por día
 y no en tokens por minuto, así que aguanta turnos encadenados; a cambio tarda ~20 s en generar la
@@ -62,8 +72,15 @@ superficie final contra ~5 s de Groq. El proveedor traduce el formato OpenAI del
 sentidos y conserva íntegro el turno del modelo (`thoughtSignature` de Gemini 3) para la siguiente
 ronda. Medido con Gemini: la ronda final gastaba ~2,300 tokens de razonamiento (13 s) para escribir
 ~1,000 de JSON; con `thinkingLevel: "low"` (`GEMINI_THINKING_LEVEL`) baja a ~7 s y el turno completo a
-~10 s. **Regla para la demo:** Groq si el tier lo permite (velocidad); Gemini si hay que encadenar
-pasos sin esperar.
+~10 s. Ese nivel es de Gemini 3.x; en 2.5 el proveedor lo traduce a `thinkingBudget` en tokens, que es
+lo único que ese modelo acepta. **Regla para la demo:** Groq si el tier lo permite (velocidad); Gemini
+si hay que encadenar pasos sin esperar.
+
+El cupo diario gratis depende del modelo y no todos sirven para una demo: `gemini-3.6-flash` da 20
+requests al día y cada turno del agente gasta dos (fase de tools + fase de interfaz), o sea ~10 turnos
+antes del 429; `gemini-2.5-flash` da cientos. Cuando el 429 es por cupo diario el proveedor falla de
+inmediato con ese texto en vez de reintentar: el `retryDelay` que manda Google en ese caso es de
+segundos y esperarlo solo repite el error mientras la pantalla dice "Modelo saturado, reintentando…".
 
 ## Streaming: esqueleto + chunks en vez de tool-calls de UI
 

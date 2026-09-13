@@ -385,7 +385,7 @@ va ahí. Se llenan en las fases 2 y 3. Cada workspace tiene sus tests; `npm test
 | Quiero agregar… | Va en… | Y además… |
 |---|---|---|
 | Una herramienta MCP nueva | `packages/mcp-server/src/tools.js` + registro en `src/server.js` | Test en `packages/mcp-server/tests/`; el agente la descubre solo |
-| Un tipo de componente de UI | `packages/a2ui-schema/src/catalog.js` + `schemas.js` | Renderer web y mobile; el prompt se actualiza solo desde el catálogo; test en `packages/a2ui-schema/tests/` |
+| Un tipo de componente de UI | `packages/a2ui-schema/src/core/catalog-v2.js` (firma + hint) | Renderer web **y** mobile —`catalog-parity.test.js` falla si falta en alguno—, su equivalencia en `core/degrade.js` y, si es un tipo v1, su esquema en `schemas.js` |
 | Un proveedor LLM (Gemini) | `apps/api/src/providers/<nombre>.js` + registro en `providers/index.js` | Mismo contrato `chat()` que Groq; test con fetch falso como `providers-groq.test.js` |
 | Una fuente de datos (Tiger, Snowflake) | `packages/mcp-server/src/repositories/<nombre>.js` + registro en `repositories/index.js` | Mismo contrato que `memory.js`; las tools no cambian |
 | Un servicio externo que no es LLM (ElevenLabs) | `apps/api/src/services/<nombre>.js` + su ruta en `routes/` | Key solo en `.env`; fallback documentado |

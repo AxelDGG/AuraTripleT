@@ -7,7 +7,7 @@ import { parseUiJson } from '../ui-spec.js';
 export const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 export const GROQ_DEFAULT_MODEL = 'openai/gpt-oss-120b';
 
-const MAX_RATE_LIMIT_RETRIES = 4;
+const MAX_RATE_LIMIT_RETRIES = 6;
 // Tope para esperar a que se libere el límite por minuto antes de rendirse.
 const MAX_RATE_LIMIT_WAIT_SECONDS = 90;
 const DEFAULT_RETRY_WAIT_SECONDS = 8;
@@ -109,12 +109,20 @@ export function createGroqProvider({
         }),
       }, TIMEOUT_MS);
 
-      if (res.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      if (res.status === 429) {
         const body = await res.text();
         const waitSeconds = parseRetryAfterSeconds(body);
         // El límite por minuto (TPM) se libera solo: vale la pena esperar hasta
-        // un minuto. El diario o una espera de minutos, no.
-        if (/tokens per day/i.test(body) || waitSeconds > MAX_RATE_LIMIT_WAIT_SECONDS) throw rateLimitError(body, waitSeconds);
+        // un minuto. El diario o una espera de minutos, no. Agotados los
+        // reintentos se avisa con el mismo mensaje legible en vez de dejar
+        // salir el JSON crudo de la API hacia la interfaz.
+        if (
+          attempt >= MAX_RATE_LIMIT_RETRIES
+          || /tokens per day/i.test(body)
+          || waitSeconds > MAX_RATE_LIMIT_WAIT_SECONDS
+        ) {
+          throw rateLimitError(body, waitSeconds);
+        }
         onRateLimit?.(waitSeconds, attempt + 1);
         await sleep(waitSeconds * 1000);
         continue;

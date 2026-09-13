@@ -11,6 +11,12 @@
 //   domain   → las piezas bancarias propias (gráficas, KPIs, cuentas…)
 //   input    → controles ligados al modelo de datos, sin volver al LLM
 //   action   → botones y formularios que cierran el ciclo con el agente
+//
+// Cada entrada tiene exactamente dos descripciones, cada una con su destino:
+//   signature → lo ÚNICO que lee el modelo (firma compacta: el presupuesto del
+//               orquestador es de 8k tokens por minuto contando tools)
+//   hint      → lo que un cliente lee del descriptor HTTP
+// No hay una tercera: un ejemplo por componente se desincronizaba de la firma.
 
 export const A2UI_VERSION = 'v1.0';
 export const CATALOG_ID = 'urn:norte:a2ui:catalog:banorte:v2';
@@ -22,56 +28,56 @@ export const COMPONENT_CATALOG_V2 = [
     name: 'Stack',
     kind: 'layout',
     container: true,
-    example: '{"component":"Stack","gap":"md","children":[...]}',
+    signature: 'Stack{gap sm|md|lg,children}',
     hint: 'apila hijos en vertical. gap: sm|md|lg.',
   },
   {
     name: 'Row',
     kind: 'layout',
     container: true,
-    example: '{"component":"Row","wrap":true,"children":[...]}',
+    signature: 'Row{wrap,children}',
     hint: 'hijos en horizontal; con wrap se acomodan en varias líneas si no caben.',
   },
   {
     name: 'Grid',
     kind: 'layout',
     container: true,
-    example: '{"component":"Grid","columns":3,"children":[...]}',
+    signature: 'Grid{columns 2-4,children}',
     hint: 'rejilla de 2 a 4 columnas; ideal para varios Kpi o AccountCard.',
   },
   {
     name: 'Card',
     kind: 'layout',
     container: true,
-    example: '{"component":"Card","title":"...","children":[...]}',
+    signature: 'Card{title,children}',
     hint: 'tarjeta con borde que agrupa hijos relacionados.',
   },
   {
     name: 'Section',
     kind: 'layout',
     container: true,
-    example: '{"component":"Section","title":"...","subtitle":"...","children":[...]}',
+    signature: 'Section{title,subtitle,children}',
     hint: 'bloque con título de sección y sus hijos debajo.',
   },
   {
     name: 'Tabs',
     kind: 'layout',
     container: true,
-    example: '{"component":"Tabs","items":[{"label":"12 meses","children":[...]},{"label":"24 meses","children":[...]}]}',
+    signature: 'Tabs{items:[{label,children}]} (comparar escenarios)',
     hint: 'pestañas; cada item tiene label y sus propios hijos. Úsalo para comparar escenarios.',
   },
   {
     name: 'Divider',
     kind: 'layout',
     container: false,
-    example: '{"component":"Divider"}',
+    signature: 'Divider',
     hint: 'línea separadora.',
   },
   {
     name: 'List',
     kind: 'layout',
     container: true,
-    example: '{"component":"List","items":{"path":"/movimientos"},"template":{"component":"Text","markdown":{"path":"description"}}}',
+    signature: 'List{items:{path},template:{componente}} (en template las rutas sin "/" son relativas al elemento)',
     hint: 'repite template por cada elemento de items (una lista del dataModel); dentro del template las rutas sin "/" son relativas al elemento.',
   },
 
@@ -80,77 +86,77 @@ export const COMPONENT_CATALOG_V2 = [
     name: 'Header',
     kind: 'domain',
     container: false,
-    example: '{"component":"Header","title":"...","subtitle":"...","badge":"..."}',
+    signature: 'Header{title,subtitle,badge}',
     hint: 'encabezado de la vista.',
   },
   {
     name: 'Kpi',
     kind: 'domain',
     container: false,
-    example: '{"component":"Kpi","label":"...","value":"$48,250.75","delta":"+12%","trend":"up|down|neutral","icon":"💰"}',
+    signature: 'Kpi{label,value,delta,trend up|down|neutral,icon}',
     hint: 'una métrica clave; pon varias dentro de un Grid. value puede ser un binding con call currency.',
   },
   {
     name: 'AccountCard',
     kind: 'domain',
     container: false,
-    example: '{"component":"AccountCard","name":"...","number":"**** 4821","balance":48250.75,"currency":"MXN","kind":"checking|savings|credit","extra":"..."}',
+    signature: 'AccountCard{name,number,balance,kind checking|savings|credit,extra}',
     hint: 'tarjeta de una cuenta; varias van en un Grid o Row.',
   },
   {
     name: 'Chart',
     kind: 'domain',
     container: false,
-    example: '{"component":"Chart","chartType":"<ver catálogo de gráficas>","title":"...","labels":["..."],"datasets":[{"label":"...","data":[123,456]}]}',
+    signature: 'Chart{chartType,title,subtitle,caption,labels,datasets:[{label,data,kind,axis,color}],format,unit,target,targetLabel,value,max,label}',
     hint: 'gráfica; labels y data pueden ser bindings (path o call) y se redibuja sola cuando cambia el dataModel.',
   },
   {
     name: 'Table',
     kind: 'domain',
     container: false,
-    example: '{"component":"Table","title":"...","columns":["..."],"rows":[["..."]]}',
-    hint: 'datos tabulares.',
+    signature: 'Table{title,columns,rows}',
+    hint: 'datos tabulares con filas como arreglos.',
   },
   {
     name: 'TransactionList',
     kind: 'domain',
     container: false,
-    example: '{"component":"TransactionList","title":"...","items":[{"date":"2026-09-01","description":"...","category":"...","amount":-299.0}]}',
+    signature: 'TransactionList{title,items:[{date,description,category,amount}]}',
     hint: 'movimientos; items puede ser un binding a una lista del dataModel.',
   },
   {
     name: 'DataTable',
     kind: 'domain',
     container: false,
-    example: '{"component":"DataTable","title":"Pagos programados","columns":[{"key":"date","label":"Fecha","format":"date"},{"key":"amount","label":"Monto","format":"currency","align":"right"},{"key":"status","label":"Estado","format":"badge"}],"rows":{"path":"/pagos"},"pageSize":8}',
+    signature: 'DataTable{title,columns:[{key,label,format text|currency|date|number|percent|badge,align}],rows (objetos con esas key),pageSize,emptyText} (ordenable al tocar el encabezado)',
     hint: 'tabla con filas como objetos (no arreglos), columnas ordenables y formato por columna. Úsala en vez de Table cuando haya varias filas comparables o estados.',
   },
   {
     name: 'Calendar',
     kind: 'domain',
     container: false,
-    example: '{"component":"Calendar","title":"Septiembre","month":"2026-09","events":{"path":"/agenda"},"selected":{"path":"/schedule/date"}}',
-    hint: 'calendario mensual con marcas por día. events: [{date:"2026-09-15",label,kind payment|personal|due}]. Si le pones "value":{"path"} los días se vuelven seleccionables y escriben la fecha ahí.',
+    signature: 'Calendar{title,month "YYYY-MM",events:[{date,label,kind payment|personal|due}],selected,value} (con value:{path} los días se seleccionan)',
+    hint: 'calendario mensual con marcas por día. events: [{date,label,kind payment|personal|due}]. Si le pones "value":{"path"} los días se vuelven seleccionables y escriben la fecha ahí.',
   },
   {
     name: 'Alert',
     kind: 'domain',
     container: false,
-    example: '{"component":"Alert","level":"info|success|warning|error","title":"...","text":"..."}',
+    signature: 'Alert{level info|success|warning|error,title,text}',
     hint: 'avisos y confirmaciones.',
   },
   {
     name: 'Progress',
     kind: 'domain',
     container: false,
-    example: '{"component":"Progress","label":"...","value":65,"caption":"..."}',
+    signature: 'Progress{label,value 0-100,caption}',
     hint: 'barra de avance 0-100.',
   },
   {
     name: 'Text',
     kind: 'domain',
     container: false,
-    example: '{"component":"Text","markdown":"..."}',
+    signature: 'Text{markdown}',
     hint: 'texto breve con **negritas** y `código`.',
   },
 
@@ -159,43 +165,43 @@ export const COMPONENT_CATALOG_V2 = [
     name: 'Slider',
     kind: 'input',
     container: false,
-    example: '{"component":"Slider","label":"Plazo","value":{"path":"/plan/months"},"min":6,"max":36,"step":6,"unit":"meses"}',
-    hint: 'control deslizante; value DEBE ser {"path"}: al moverlo se escribe ahí y todo lo que dependa de esa ruta se recalcula al instante, sin llamarte.',
+    signature: 'Slider{label,value,min,max,step,unit}',
+    hint: 'control deslizante; al moverlo escribe en su ruta y todo lo que dependa de ella se recalcula al instante, sin volver al agente.',
   },
   {
     name: 'Select',
     kind: 'input',
     container: false,
-    example: '{"component":"Select","label":"Cuenta","value":{"path":"/form/fromAccountId"},"options":[{"value":"ACC-001","label":"Nómina"}]}',
+    signature: 'Select{label,value,options:[{value,label}]}',
     hint: 'lista desplegable ligada a una ruta.',
   },
   {
     name: 'ChoiceChips',
     kind: 'input',
     container: false,
-    example: '{"component":"ChoiceChips","label":"Escenario","value":{"path":"/plan/months"},"options":[{"value":12,"label":"12 meses"},{"value":24,"label":"24 meses"}]}',
+    signature: 'ChoiceChips{label,value,options:[{value,label}]} (2-5 opciones)',
     hint: 'opciones como chips (una activa); mejor que Select cuando son 2-5 opciones.',
   },
   {
     name: 'TextField',
     kind: 'input',
     container: false,
-    example: '{"component":"TextField","label":"Monto","value":{"path":"/form/amount"},"inputType":"number","placeholder":"0.00"}',
+    signature: 'TextField{label,value,inputType text|number,placeholder}',
     hint: 'campo de texto o número ligado a una ruta.',
   },
   {
     name: 'Toggle',
     kind: 'input',
     container: false,
-    example: '{"component":"Toggle","label":"Incluir seguro","value":{"path":"/plan/insurance"}}',
+    signature: 'Toggle{label,value}',
     hint: 'interruptor booleano ligado a una ruta.',
   },
   {
     name: 'DatePicker',
     kind: 'input',
     container: false,
-    example: '{"component":"DatePicker","label":"Fecha del recordatorio","value":{"path":"/schedule/date"},"min":"2026-09-12","hint":"..."}',
-    hint: 'selector de fecha: botón con la fecha elegida que abre un calendario. value DEBE ser {"path"} y se escribe como "YYYY-MM-DD". min/max acotan el rango.',
+    signature: 'DatePicker{label,value,min,max,hint} (value se escribe como "YYYY-MM-DD")',
+    hint: 'selector de fecha: botón con la fecha elegida que abre un calendario. min/max acotan el rango.',
   },
 
   // ---------- action ----------
@@ -203,22 +209,24 @@ export const COMPONENT_CATALOG_V2 = [
     name: 'Button',
     kind: 'action',
     container: false,
-    example: '{"component":"Button","label":"Aplicar plan","variant":"primary|secondary|ghost","action":{"event":{"name":"confirm_restructure","context":{"months":{"path":"/plan/months"}}}}}',
-    hint: 'dispara un evento hacia ti con el contexto resuelto del dataModel. Con "confirm": true el cliente pide confirmar antes de enviar.',
+    signature: 'Button{label,variant primary|secondary|ghost,confirm,action:{event:{name,context}}}',
+    hint: 'dispara un evento hacia el agente con el contexto resuelto del dataModel. Con "confirm": true el cliente pide confirmar antes de enviar.',
   },
   {
     name: 'Form',
     kind: 'action',
     container: false,
-    example: '{"component":"Form","title":"...","description":"...","submitLabel":"...","action":"transfer_funds","fields":[{"name":"...","label":"...","inputType":"text|number|select","options":[{"value":"...","label":"..."}],"placeholder":"...","value":"..."}]}',
-    hint: 'formulario clásico: al enviarse te llega el evento con nombre = action y los campos como contexto.',
+    signature: 'Form{title,description,action,submitLabel,fields:[{name,label,inputType text|number|select,options,placeholder,value}]} (al enviarse llega el evento "action" con los campos)',
+    hint: 'formulario clásico: al enviarse llega el evento con nombre = action y los campos como contexto.',
   },
 ];
 
 export const COMPONENT_NAMES_V2 = COMPONENT_CATALOG_V2.map((c) => c.name);
 export const CONTAINER_COMPONENTS = new Set(COMPONENT_CATALOG_V2.filter((c) => c.container).map((c) => c.name));
+// Controles: su "value" tiene que ser {"path"} para que escriban en el modelo.
+export const INPUT_COMPONENTS = new Set(COMPONENT_CATALOG_V2.filter((c) => c.kind === 'input').map((c) => c.name));
 // Componente interno del cliente para el esqueleto que se pinta mientras el
-// agente trabaja. No se le ofrece al modelo.
+// agente trabaja. No se le ofrece al modelo, pero todo cliente lo sabe pintar.
 export const INTERNAL_COMPONENTS = ['Skeleton'];
 
 // Sinónimos frecuentes del modelo (y nombres del catálogo básico de A2UI).
@@ -257,6 +265,18 @@ export function isComponentName(name) {
   return canonicalComponentName(name) !== null;
 }
 
+// Lo que un cliente anunció que sabe pintar, en nombres canónicos y con los
+// componentes internos incluidos. `null` = sin negociación: todo el catálogo.
+export function supportedSet(names) {
+  if (!Array.isArray(names) || !names.length) return null;
+  const set = new Set(INTERNAL_COMPONENTS);
+  for (const name of names) {
+    const canonical = canonicalComponentName(name);
+    if (canonical) set.add(canonical);
+  }
+  return set.size > INTERNAL_COMPONENTS.length ? set : null;
+}
+
 // Descriptor público del catálogo (lo que un cliente anuncia y la API expone).
 export function catalogDescriptor({ functions = [] } = {}) {
   return {
@@ -268,65 +288,48 @@ export function catalogDescriptor({ functions = [] } = {}) {
 }
 
 // Firmas de las renderer functions para el prompt. Se documentan aquí (y no en
-// functions.js) porque esto es lo que el modelo lee; la implementación es aparte.
+// functions.js) porque esto es lo que el modelo lee; la implementación es aparte
+// y un test verifica que lo documentado siga existiendo.
 export const FUNCTION_GUIDE = [
   'currency({v}) compact({v}) percent({v}) number({v,decimals,unit}) date({v}) template({text:"Pagas {p}",p}) concat({parts})',
-  'add/sub/mul/div({a,b}) sum({values}|{items,key}) pct({part,total}) round({v,decimals}) avg/min/max({values}) pluck({items,key}) lookup({items,key,value,field}) count({items}) eq/gt/lt({a,b}) if({cond,then,else})',
-  'amortize({amount,months,annualRate})=mensualidad totalInterest({…}) totalPayment({…}) schedule({amount,months,annualRate,field:"balance|interest|capital"})=serie por mes scheduleLabels({months}) effectiveAnnual({annualRate})=CAT aprox',
+  'add/sub/mul/div({a,b}) sum({values}|{items,key}) pct({part,total}) round({v,decimals}) avg/min/max({values}) pluck({items,key}) lookup({items,key,value,field}) count({items}) eq/gt/lt({a,b}) if({cond,then,else}) coalesce({values})=primer valor no vacío',
+  'amortize({amount,months,annualRate})=mensualidad totalInterest({…}) totalPayment({…}) interestSavings({amount,months,annualRate,baselineMonths,baselineRate})=intereses ahorrados vs el plan actual schedule({amount,months,annualRate,field:"balance|interest|capital"})=serie por mes scheduleLabels({months}) effectiveAnnual({annualRate})=CAT aprox',
 ];
 
-// Firma compacta de cada componente para el prompt. El presupuesto de tokens
-// del orquestador es chico (Groq on-demand: 8k tokens por minuto, contando
-// tools y resultados), así que el prompt describe el catálogo como firmas y
-// no con un JSON de ejemplo por componente; un solo ejemplo completo al final
-// enseña la forma.
-const SIGNATURES = {
-  Stack: 'Stack{gap sm|md|lg,children}',
-  Row: 'Row{wrap,children}',
-  Grid: 'Grid{columns 2-4,children}',
-  Card: 'Card{title,children}',
-  Section: 'Section{title,subtitle,children}',
-  Tabs: 'Tabs{items:[{label,children}]} (comparar escenarios)',
-  Divider: 'Divider',
-  List: 'List{items:{path},template:{componente}} (en template las rutas sin "/" son relativas al elemento)',
-  Header: 'Header{title,subtitle,badge}',
-  Kpi: 'Kpi{label,value,delta,trend up|down|neutral,icon}',
-  AccountCard: 'AccountCard{name,number,balance,kind checking|savings|credit,extra}',
-  Chart: 'Chart{chartType,title,subtitle,caption,labels,datasets:[{label,data,kind,axis,color}],format,unit,target,targetLabel,value,max,label}',
-  Table: 'Table{title,columns,rows}',
-  TransactionList: 'TransactionList{title,items:[{date,description,category,amount}]}',
-  DataTable: 'DataTable{title,columns:[{key,label,format text|currency|date|number|percent|badge,align}],rows (objetos con esas key),pageSize,emptyText} (ordenable al hacer clic en el encabezado)',
-  Calendar: 'Calendar{title,month "YYYY-MM",events:[{date,label,kind payment|personal|due}],selected,value} (con value:{path} los días se seleccionan)',
-  Alert: 'Alert{level info|success|warning|error,title,text}',
-  Progress: 'Progress{label,value 0-100,caption}',
-  Text: 'Text{markdown}',
-  Slider: 'Slider{label,value,min,max,step,unit}',
-  Select: 'Select{label,value,options:[{value,label}]}',
-  ChoiceChips: 'ChoiceChips{label,value,options:[{value,label}]} (2-5 opciones)',
-  TextField: 'TextField{label,value,inputType text|number,placeholder}',
-  Toggle: 'Toggle{label,value}',
-  DatePicker: 'DatePicker{label,value,min,max,hint} (value se escribe como "YYYY-MM-DD")',
-  Button: 'Button{label,variant primary|secondary|ghost,confirm,action:{event:{name,context}}}',
-  Form: 'Form{title,description,action,submitLabel,fields:[{name,label,inputType text|number|select,options,placeholder,value}]} (al enviarse llega el evento "action" con los campos)',
+// Un ejemplo completo enseña la forma mejor que veinte firmas. Si el cliente no
+// sabe pintar algo de este ejemplo (negociación de capacidades), se usa uno
+// mínimo con lo que sí anunció: nunca se le enseña lo que no puede usar.
+const EXAMPLE = {
+  needs: ['Section', 'Grid', 'Kpi', 'Slider', 'Button'],
+  json:
+    '{"component":"Section","title":"Tu plan","children":[{"component":"Grid","columns":2,"children":[{"component":"Kpi","label":"Pago mensual","value":{"call":"currency","args":{"v":{"call":"amortize","args":{"amount":{"path":"/plan/balance"},"months":{"path":"/plan/months"},"annualRate":{"path":"/plan/annualRate"}}}}}},{"component":"Kpi","label":"Plazo","value":{"call":"template","args":{"text":"{m} meses","m":{"path":"/plan/months"}}}}]},{"component":"Slider","label":"Plazo","value":{"path":"/plan/months"},"min":6,"max":36,"step":6,"unit":"meses"},{"component":"Button","label":"Aplicar plan","action":{"event":{"name":"confirm_restructure","context":{"months":{"path":"/plan/months"}}}}}]}',
 };
 
-const EXAMPLE =
-  '{"component":"Section","title":"Tu plan","children":[{"component":"Grid","columns":2,"children":[{"component":"Kpi","label":"Pago mensual","value":{"call":"currency","args":{"v":{"call":"amortize","args":{"amount":{"path":"/plan/balance"},"months":{"path":"/plan/months"},"annualRate":{"path":"/plan/annualRate"}}}}}},{"component":"Kpi","label":"Plazo","value":{"call":"template","args":{"text":"{m} meses","m":{"path":"/plan/months"}}}}]},{"component":"Slider","label":"Plazo","value":{"path":"/plan/months"},"min":6,"max":36,"step":6,"unit":"meses"},{"component":"Button","label":"Aplicar plan","action":{"event":{"name":"confirm_restructure","context":{"months":{"path":"/plan/months"}}}}}]}';
+const FALLBACK_EXAMPLE =
+  '{"component":"Stack","children":[{"component":"Text","markdown":"**Saldo disponible**"},{"component":"Text","markdown":{"call":"currency","args":{"v":{"path":"/cuenta/saldo"}}}}]}';
+
+const KIND_TITLES = [
+  ['layout', 'Layout'],
+  ['domain', 'Dominio'],
+  ['input', 'Controles (su "value" DEBE ser {"path":...})'],
+  ['action', 'Acciones'],
+];
 
 // Bloque del prompt: catálogo + reglas de binding. `only` restringe a lo que el
 // cliente anunció que sabe pintar (negociación de capacidades).
 export function componentsPromptSectionV2({ only } = {}) {
-  const allowed = only && only.length ? new Set(only.map(canonicalComponentName).filter(Boolean)) : null;
+  const allowed = supportedSet(only);
   const entries = COMPONENT_CATALOG_V2.filter((c) => !allowed || allowed.has(c.name));
-  const byKind = (kind) => entries.filter((c) => c.kind === kind).map((c) => SIGNATURES[c.name] ?? c.name).join(' · ');
-  return [
-    'COMPONENTES A2UI ("ui" es un árbol: los contenedores llevan "children"; usa 3-8 componentes bien acomodados):',
-    `Layout: ${byKind('layout')}`,
-    `Dominio: ${byKind('domain')}`,
-    `Controles (su "value" DEBE ser {"path":...}): ${byKind('input')}`,
-    `Acciones: ${byKind('action')}`,
-    'Bindings: un valor puede ser literal, {"path":"/ruta"} (JSON Pointer al dataModel) o {"call":"fn","args":{...}} (derivado; los args aceptan bindings). Lo que un control pueda cambiar vive en dataModel; lo derivado se describe con call y el cliente lo recalcula al instante sin llamarte. {"path":"/lista/*/campo"} recorre una lista. Un Button manda su event con el context resuelto y te llega como [action:name].',
+  const example = !allowed || EXAMPLE.needs.every((n) => allowed.has(n)) ? EXAMPLE.json : FALLBACK_EXAMPLE;
+  const lines = ['COMPONENTES A2UI ("ui" es un árbol: los contenedores llevan "children"; usa 3-8 componentes bien acomodados):'];
+  for (const [kind, title] of KIND_TITLES) {
+    const section = entries.filter((c) => c.kind === kind).map((c) => c.signature).join(' · ');
+    if (section) lines.push(`${title}: ${section}`);
+  }
+  lines.push(
+    'Bindings: un valor puede ser literal, {"path":"/ruta"} (JSON Pointer al dataModel) o {"call":"fn","args":{...}} (derivado; los args aceptan bindings); ambos aceptan "default" para cuando la ruta venga vacía. Lo que un control pueda cambiar vive en dataModel; lo derivado se describe con call y el cliente lo recalcula al instante sin llamarte. {"path":"/lista/*/campo"} recorre una lista. Un Button manda su event con el context resuelto y te llega como [action:name].',
     `Funciones: ${FUNCTION_GUIDE.join(' · ')}`,
-    `Ejemplo: ${EXAMPLE}`,
-  ].join('\n');
+    `Ejemplo: ${example}`,
+  );
+  return lines.join('\n');
 }

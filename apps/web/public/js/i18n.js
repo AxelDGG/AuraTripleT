@@ -31,33 +31,69 @@
     'suggest.gastos.hint': 'Por categoría, este mes',
     'suggest.gastos.prompt': 'Hazme una gráfica de mis gastos por categoría de este mes, con las categorías principales y cuánto subió o bajó cada una.',
 
+    'suggest.agenda.title': 'Agenda de pagos',
+    'suggest.agenda.hint': 'Fechas límite de tus tarjetas',
+    'suggest.agenda.prompt': 'Muéstrame en un calendario las fechas límite de pago de mis tarjetas, con el pago mínimo de cada una, y déjame agendar los recordatorios.',
+
+    'suggest.tendencia.title': '¿Gasto más que antes?',
+    'suggest.tendencia.hint': 'Tendencia de 6 meses',
+    'suggest.tendencia.prompt': 'Compara mi gasto actual contra mi promedio de los últimos 6 meses: muéstrame la tendencia mes a mes y en qué categorías subí más.',
+
     'suggest.ganancias.title': 'Gráfica de ganancias',
     'suggest.ganancias.hint': 'Ingresos contra egresos',
     'suggest.ganancias.prompt': 'Muéstrame una gráfica de mis ingresos contra mis egresos de los últimos meses y cuánto me quedó de ganancia neta en cada uno.',
+
+    'suggest.movimientos.title': 'Últimos movimientos',
+    'suggest.movimientos.hint': 'Tabla que puedo ordenar',
+    'suggest.movimientos.prompt': 'Arma una tabla con mis últimos movimientos —fecha, descripción, categoría y monto— que pueda ordenar por monto.',
 
     'suggest.flujo.title': 'Flujo de efectivo',
     'suggest.flujo.hint': 'Últimos 6 meses',
     'suggest.flujo.prompt': 'Grafica mi flujo de efectivo de los últimos 6 meses: entradas, salidas y saldo al cierre de cada mes.',
 
+    'suggest.transferir.title': 'Transferir dinero',
+    'suggest.transferir.hint': 'Formulario listo para enviar',
+    'suggest.transferir.prompt': 'Quiero hacer una transferencia: arma el formulario con mis cuentas y mis beneficiarios ya cargados.',
+
     'suggest.reparto.title': 'Reparto de mi dinero',
     'suggest.reparto.hint': 'Distribución entre cuentas',
     'suggest.reparto.prompt': 'Muéstrame en una gráfica cómo está repartido mi dinero entre todas mis cuentas, con el porcentaje de cada una.',
+
+    'suggest.suscripciones.title': 'Cargos que se repiten',
+    'suggest.suscripciones.hint': 'Suscripciones del mes',
+    'suggest.suscripciones.prompt': 'Revisa mis movimientos y dime qué cargos se repiten cada mes (suscripciones y domiciliaciones), cuánto suman y qué día me los cobran.',
 
     'suggest.comparativo.title': 'Comparativo mensual',
     'suggest.comparativo.hint': 'Este mes contra el anterior',
     'suggest.comparativo.prompt': 'Compara mi gasto de este mes contra el mes pasado por categoría y señala dónde está la mayor diferencia.',
 
+    'suggest.semana.title': 'Mi semana',
+    'suggest.semana.hint': 'Agenda y pagos juntos',
+    'suggest.semana.prompt': 'Muéstrame mi calendario de esta semana junto con los pagos que me tocan, para ver si me alcanza antes de mi próximo pago.',
+
     'suggest.saldos.title': 'Saldo de mis cuentas',
     'suggest.saldos.hint': 'Todas mis cuentas de un vistazo',
     'suggest.saldos.prompt': 'Muéstrame el saldo de todas mis cuentas con sus detalles.',
+
+    'suggest.inversiones.title': 'Mis inversiones',
+    'suggest.inversiones.hint': 'Pagarés y fondos',
+    'suggest.inversiones.prompt': 'Muéstrame cómo están repartidas mis inversiones entre pagarés y fondos, cuánto llevo ganado en cada una y qué rendimiento dan.',
 
     'suggest.tarjeta.title': 'Estado de mi tarjeta',
     'suggest.tarjeta.hint': 'Saldo, límite y fecha de pago',
     'suggest.tarjeta.prompt': '¿Cuánto debo de mi tarjeta de crédito, cuánto me queda de límite y cuándo tengo que pagar?',
 
+    'suggest.recordatorio.title': 'Agendar un pago',
+    'suggest.recordatorio.hint': 'Escoge fecha y concepto',
+    'suggest.recordatorio.prompt': 'Quiero agendar un pago en mi calendario: déjame elegir la fecha, el concepto y el monto.',
+
     'suggest.credito.title': 'Simular un crédito',
     'suggest.credito.hint': 'Mensualidad y tasa',
     'suggest.credito.prompt': 'Simula un crédito automotriz de 350000 pesos a 48 meses y muéstrame la mensualidad y el total a pagar.',
+
+    'suggest.mercado.title': 'Mi portafolio',
+    'suggest.mercado.hint': 'Rendimiento y seguimiento',
+    'suggest.mercado.prompt': 'Muéstrame el rendimiento de mi portafolio en el último año y las acciones que sigo, con su variación del día.',
 
     'suggest.fx.title': 'Tipo de cambio',
     'suggest.fx.hint': 'Dólar de hoy',

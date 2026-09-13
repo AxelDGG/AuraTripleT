@@ -14,8 +14,10 @@
 // reproducen íntegras en vez de reconstruirlas desde `tool_calls`.
 //
 // Por qué existe además de Groq: el tier gratis de Gemini se mide en requests
-// por día (cientos) y no en tokens por minuto (8k en Groq on-demand), así que
-// un turno con tools (~5k tokens) no lo satura.
+// por día y no en tokens por minuto (8k en Groq on-demand), así que un turno
+// con tools (~5k tokens) no lo satura. Ojo con cuál: el cupo diario cambia
+// muchísimo entre modelos (gemini-3.6-flash da 20 requests/día en el tier
+// gratis, gemini-2.5-flash cientos) y cada turno del agente gasta dos.
 
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.6-flash';
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
@@ -23,6 +25,8 @@ export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta
 const MAX_RATE_LIMIT_RETRIES = 4;
 const MAX_RATE_LIMIT_WAIT_SECONDS = 60;
 const DEFAULT_RETRY_WAIT_SECONDS = 10;
+// 503 UNAVAILABLE ("high demand") es del lado de Google y suele durar segundos.
+const OVERLOADED_WAIT_SECONDS = 2;
 const TIMEOUT_MS = 90_000;
 const TEMPERATURE = 0.3;
 // Incluye los tokens de razonamiento del modelo: corto y se trunca el JSON.
@@ -98,7 +102,17 @@ function toolResponse(content) {
   }
 }
 
-export function toGeminiRequest({ messages, tools }) {
+// Gemini 3.x regula el razonamiento con `thinkingLevel`; 2.5 solo entiende
+// `thinkingBudget` en tokens y responde 400 si le llega el nivel. Se traduce
+// aquí para que cambiar GEMINI_MODEL no rompa el turno.
+const THINKING_BUDGET = { off: 0, none: 0, minimal: 0, low: 512, medium: 4096, high: 12288 };
+
+export function thinkingConfig(model, level) {
+  if (/^gemini-3/.test(model)) return { thinkingLevel: level };
+  return { thinkingBudget: THINKING_BUDGET[level] ?? THINKING_BUDGET.low };
+}
+
+export function toGeminiRequest({ messages, tools, model = GEMINI_DEFAULT_MODEL }) {
   const system = [];
   const contents = [];
   let pendingResponses = null;
@@ -152,7 +166,7 @@ export function toGeminiRequest({ messages, tools }) {
       // Medido: con el razonamiento por defecto la ronda final gastaba ~2,300
       // tokens pensando (13 s) para escribir ~1,000 de JSON. La tarea ya viene
       // guiada por el prompt y los datos de las tools; "low" recorta la espera.
-      thinkingConfig: { thinkingLevel: process.env.GEMINI_THINKING_LEVEL || 'low' },
+      thinkingConfig: thinkingConfig(model, process.env.GEMINI_THINKING_LEVEL || 'low'),
     },
   };
   if (system.length) request.systemInstruction = { parts: [{ text: system.join('\n\n') }] };
@@ -190,6 +204,13 @@ export function fromGeminiResponse(data) {
   return message;
 }
 
+// El 429 por cupo diario trae un retryDelay corto (13 s) que no sirve de nada:
+// esperarlo solo repite el error hasta agotar los reintentos. Se reconoce por
+// el quotaId de la violación (…PerDayPerProject…).
+function isDailyQuota(body) {
+  return /PerDay/i.test(body) || /per day/i.test(body);
+}
+
 // "retryDelay": "23s" en el error 429; si no viene, 10 s.
 function parseRetryAfterSeconds(body) {
   const match = body.match(/"retryDelay":\s*"(\d+(?:\.\d+)?)s"/) ?? body.match(/retry in ([\d.]+)s/i);
@@ -223,7 +244,7 @@ export function createGeminiProvider({
   const url = `${baseUrl}/models/${model}:generateContent`;
 
   async function chat({ messages, tools, onRateLimit }) {
-    const body = JSON.stringify(toGeminiRequest({ messages, tools }));
+    const body = JSON.stringify(toGeminiRequest({ messages, tools, model }));
     for (let attempt = 0; attempt <= MAX_RATE_LIMIT_RETRIES; attempt++) {
       const res = await fetchWithTimeout(fetchImpl, url, {
         method: 'POST',
@@ -231,12 +252,28 @@ export function createGeminiProvider({
         body,
       }, TIMEOUT_MS);
 
-      if (res.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      if (res.status === 429) {
         const errorBody = await res.text();
+        // Sin cupo diario no hay reintento que valga: mejor decirlo que dejar
+        // la pantalla en "Modelo saturado, reintentando…" durante un minuto.
+        if (isDailyQuota(errorBody)) {
+          throw new Error(
+            `Gemini: cupo diario gratis de ${model} agotado; cambia GEMINI_MODEL (p. ej. gemini-2.5-flash), usa otra API key o LLM_PROVIDER=groq.`,
+          );
+        }
         const waitSeconds = parseRetryAfterSeconds(errorBody);
-        if (waitSeconds > MAX_RATE_LIMIT_WAIT_SECONDS) {
+        if (attempt >= MAX_RATE_LIMIT_RETRIES || waitSeconds > MAX_RATE_LIMIT_WAIT_SECONDS) {
           throw new Error(`Gemini: límite de cuota; vuelve a intentar en ~${Math.ceil(waitSeconds / 60)} min.`);
         }
+        onRateLimit?.(waitSeconds, attempt + 1);
+        await sleep(waitSeconds * 1000);
+        continue;
+      }
+      // El modelo saturado del lado de Google: sin esto un pico de segundos
+      // tumba el turno entero con un 503 crudo.
+      if (res.status === 503 && attempt < MAX_RATE_LIMIT_RETRIES) {
+        await res.text();
+        const waitSeconds = OVERLOADED_WAIT_SECONDS * (attempt + 1);
         onRateLimit?.(waitSeconds, attempt + 1);
         await sleep(waitSeconds * 1000);
         continue;

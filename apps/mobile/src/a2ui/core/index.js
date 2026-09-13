@@ -15,5 +15,6 @@ export * from './functions.js';
 export * from './binding.js';
 export * from './catalog-v2.js';
 export * from './flatten.js';
+export * from './degrade.js';
 export * from './compat.js';
 export * from './runtime.js';

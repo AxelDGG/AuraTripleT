@@ -13,6 +13,7 @@ import { healthRouter } from './routes/health.js';
 import { dashboardRouter } from './routes/dashboard.js';
 import { customerRouter } from './routes/customer.js';
 import { overviewRouter } from './routes/overview.js';
+import { recurringRouter } from './routes/recurring.js';
 import { creditRouter } from './routes/credit.js';
 import { createChatRouter } from './routes/chat.js';
 import { authRouter } from './routes/auth.js';
@@ -91,6 +92,7 @@ export function createApp({
   app.use(dashboardRouter);
   app.use(customerRouter);
   app.use(overviewRouter);
+  app.use(recurringRouter);
   app.use(creditRouter);
   app.use(voiceRouter);
   app.use(createHistoryRouter({ historyStore }));

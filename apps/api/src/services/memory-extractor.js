@@ -11,6 +11,7 @@
 // turno termina igual.
 
 import { getLlmProvider } from '../providers/index.js';
+import { GROQ_DEFAULT_MODEL } from '../providers/groq.js';
 
 export const MEMORY_KINDS = new Set(['fact', 'preference', 'goal', 'context']);
 const MAX_FACTS = 3;
@@ -60,7 +61,29 @@ export function defaultMemoryProviderName() {
   return process.env.LLM_PROVIDER || 'groq';
 }
 
-export function createMemoryExtractor({ provider, providerName = defaultMemoryProviderName(), logger = console.warn } = {}) {
+// En Groq el límite de tokens por minuto es por modelo: si la memoria corre en
+// el mismo que orquesta, cada turno gasta dos veces del mismo cupo y el turno
+// siguiente se topa con un 429. Por eso, cuando memoria y orquestador
+// coincidirían en Groq, la extracción se va a un modelo más chico (su propio
+// presupuesto). MEMORY_LLM_MODEL lo fija a mano.
+export const MEMORY_GROQ_FALLBACK_MODEL = 'openai/gpt-oss-20b';
+
+export function defaultMemoryModel(providerName = defaultMemoryProviderName()) {
+  if (process.env.MEMORY_LLM_MODEL) return process.env.MEMORY_LLM_MODEL;
+  if (providerName !== 'groq') return undefined;
+  const orchestrator = process.env.GROQ_MODEL || GROQ_DEFAULT_MODEL;
+  // Solo se desvía si chocaría con el orquestador; si ya son distintos, se
+  // respeta lo que diga la configuración.
+  if ((process.env.LLM_PROVIDER || 'groq') !== 'groq') return undefined;
+  return orchestrator === MEMORY_GROQ_FALLBACK_MODEL ? undefined : MEMORY_GROQ_FALLBACK_MODEL;
+}
+
+export function createMemoryExtractor({
+  provider,
+  providerName = defaultMemoryProviderName(),
+  model = defaultMemoryModel(providerName),
+  logger = console.warn,
+} = {}) {
   let resolved = provider ?? null;
   let disabled = false;
 
@@ -69,7 +92,7 @@ export function createMemoryExtractor({ provider, providerName = defaultMemoryPr
   const getProvider = () => {
     if (resolved || disabled) return resolved;
     try {
-      resolved = getLlmProvider(providerName);
+      resolved = getLlmProvider(providerName, model ? { model } : {});
     } catch (err) {
       disabled = true;
       logger(`[memoria] extracción desactivada: ${err.message}`);
@@ -95,5 +118,5 @@ export function createMemoryExtractor({ provider, providerName = defaultMemoryPr
     return facts.filter((f) => !knownKeys.has(f.content.toLowerCase()));
   }
 
-  return { name: providerName, extract };
+  return { name: providerName, model, extract };
 }
