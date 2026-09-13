@@ -63,6 +63,7 @@
     alertError: S('<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>'),
 
     convAI: S('<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3Z"/>'),
+    botAI: S('<rect x="4.5" y="6.5" width="15" height="11" rx="3.5"/><rect x="3" y="10.5" width="1.6" height="4" rx="0.8"/><rect x="19.4" y="10.5" width="1.6" height="4" rx="0.8"/><path d="M12 6.5V3.8"/><circle cx="12" cy="3.3" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="11.5" r="1.5"/><circle cx="15" cy="11.5" r="1.5"/><path d="M9.5 14.7h5"/>'),
   };
 
   function icon(name) { return ICONS[name] ?? ''; }

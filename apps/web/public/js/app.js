@@ -230,6 +230,7 @@
     if (!btn) return;
 
     let panel = null;
+    let bubble = null;
     let active = false;
 
     function loadWidgetScript() {
@@ -251,12 +252,22 @@
     }
 
     function stopMaya() {
-      if (panel) { panel.hidden = true; }
+      if (panel) {
+        const cleanup = panel._cleanup;
+        panel.remove();
+        panel = null;
+        if (cleanup) cleanup();
+      }
       setActive(false);
     }
 
     async function startMaya() {
-      if (panel) { panel.hidden = false; setActive(true); return; }
+      if (panel) {
+        panel.hidden = false;
+        if (bubble) bubble.hidden = false;
+        setActive(true);
+        return;
+      }
 
       // Cargar el script del widget la primera vez que el usuario abre Maya
       try {
@@ -287,21 +298,108 @@
       panel.className = 'maya-panel';
       const widget = document.createElement('elevenlabs-convai');
       widget.setAttribute('agent-id', agentId);
+      widget.setAttribute('language', 'es');
+      widget.setAttribute('listening-text', 'Escuchándote…');
+      widget.setAttribute('speaking-text', 'Maya hablando…');
+      widget.setAttribute('avatar-image-url', '/img/User.png');
+      widget.setAttribute('avatar-orb-color-1', '#eb0029');
+      widget.setAttribute('avatar-orb-color-2', '#9e0018');
       panel.append(widget);
       document.body.append(panel);
       setActive(true);
 
-      // Posicionar el panel sobre el botón Maya
+      // Burbuja animada del agente: orbe con avatar, ecualizador y estado
+      bubble = document.createElement('div');
+      bubble.className = 'maya-bubble is-connecting';
+      const orb = document.createElement('div');
+      orb.className = 'maya-bubble-orb';
+      const rings = [...Array(2)].map((_, i) => {
+        const r = document.createElement('span');
+        r.className = 'maya-bubble-ring' + (i ? ' r2' : '');
+        return r;
+      });
+      const eq = document.createElement('span');
+      eq.className = 'maya-bubble-eq';
+      eq.innerHTML = '<i></i><i></i><i></i><i></i><i></i>';
+      const img = document.createElement('img');
+      img.src = '/img/User.png';
+      img.alt = '';
+      orb.append(...rings, img, eq);
+      const txt = document.createElement('span');
+      txt.className = 'maya-bubble-txt';
+      txt.innerHTML = '<strong>Maya</strong><span data-bubble-status>Conectando…</span>';
+      bubble.append(orb, txt);
+      document.body.append(bubble);
+
+      const statusEl = txt.querySelector('[data-bubble-status]');
+      const setBubbleState = (state, label) => {
+        bubble.classList.toggle('is-connecting', state === 'connecting');
+        bubble.classList.toggle('is-listening', state === 'listening');
+        bubble.classList.toggle('is-speaking', state === 'speaking');
+        if (statusEl.textContent !== label) statusEl.textContent = label;
+      };
+
+      // El widget muestra su estado en su shadow DOM; lo leemos para animar
+      // la burbuja en sincronía con él.
+      const poller = setInterval(() => {
+        if (!panel || panel.hidden) return;
+        const text = widget.shadowRoot?.textContent ?? '';
+        if (/Maya hablando|Speaking|interrupt/i.test(text)) {
+          setBubbleState('speaking', 'Hablando…');
+        } else if (/Escuchándote|Listening/i.test(text)) {
+          setBubbleState('listening', 'Escuchándote…');
+        } else if (/Denied|denied/i.test(text)) {
+          setBubbleState('connecting', 'Activa el micrófono');
+        } else if (/Error|Reconnect/i.test(text)) {
+          setBubbleState('connecting', 'Intentando de nuevo…');
+        } else {
+          setBubbleState('connecting', 'Conectando…');
+        }
+      }, 350);
+
+      // El widget pide aceptar términos y picar "Start a call". Como el usuario
+      // ya abrió Maya, iniciamos la llamada automáticamente.
+      const autoStart = () => {
+        let tries = 0;
+        const tick = () => {
+          if (tries++ > 12 || !panel || panel.hidden) return;
+          const root = widget.shadowRoot;
+          if (!root) return;
+          const live = /Escuchándote|Maya hablando|Listening|Speaking|interrupt/i.test(root.textContent ?? '');
+          if (live) return;
+          const visible = (btn) => !btn.disabled && (btn.offsetParent !== null || btn.offsetWidth > 0);
+          const btns = [...root.querySelectorAll('button')];
+          const labels = btns.map((b) => (b.textContent || '').trim());
+          let clicked = false;
+          for (let i = 0; i < btns.length && !clicked; i++) {
+            if (/^agree$|^aceptar$|^acepto$/i.test(labels[i]) && visible(btns[i])) btns[i].click();
+            else if (/start a call|begin|iniciar|empezar/i.test(labels[i]) && visible(btns[i])) btns[i].click();
+            else continue;
+            clicked = true;
+          }
+          setTimeout(tick, 400);
+        };
+        setTimeout(tick, 500);
+      };
+      autoStart();
+
+      // Posicionar la burbuja sobre el botón Maya (el widget flota en su esquina)
       function reposition() {
         if (!panel || panel.hidden) return;
         const rect = btn.getBoundingClientRect();
         panel.style.bottom = (window.innerHeight - rect.top + 10) + 'px';
         panel.style.right = (window.innerWidth - rect.right) + 'px';
         panel.style.left = 'auto';
+        bubble.style.bottom = (window.innerHeight - rect.top + 48) + 'px';
+        bubble.style.right = (window.innerWidth - rect.right - 8) + 'px';
       }
       reposition();
       window.addEventListener('resize', reposition);
-      panel._cleanup = () => window.removeEventListener('resize', reposition);
+      panel._cleanup = () => {
+        clearInterval(poller);
+        window.removeEventListener('resize', reposition);
+        bubble.remove();
+      };
     }
 
     btn.addEventListener('click', () => {
