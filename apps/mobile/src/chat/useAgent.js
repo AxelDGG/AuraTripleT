@@ -15,7 +15,7 @@
 // El historial de la conversación se recorta a los últimos turnos: el agente
 // necesita contexto, pero mandarle todo hace la petición cara y lenta.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { streamAction, streamChat } from '../api/endpoints';
 import { clientCapabilities, surfaceStore } from '../a2ui/A2UIRenderer';
 
@@ -55,6 +55,9 @@ export function useAgent({ onArchived, onMessage } = {}) {
 
   const historyRef = useRef([]);
   const abortRef = useRef(null);
+  // Espejo de `busy` para los callbacks: el estado de React puede ir un render
+  // atrás cuando dos envíos llegan seguidos.
+  const busyRef = useRef(false);
   // Superficie que la persona tiene en pantalla: {surfaceId, title}.
   const activeRef = useRef(null);
 
@@ -70,6 +73,7 @@ export function useAgent({ onArchived, onMessage } = {}) {
   const cancel = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    busyRef.current = false;
     setBusy(false);
     setStatus(null);
   }, []);
@@ -84,10 +88,12 @@ export function useAgent({ onArchived, onMessage } = {}) {
     };
   };
 
-  // Un turno completo: texto libre o acción tipada.
+  // Un turno completo: texto libre o acción tipada. Resuelve con el mensaje
+  // hablado del agente (o null): el modo llamada lo lee en voz alta.
   const runTurn = useCallback(
     async ({ message, action, liveTitle }) => {
-      if (busy) return;
+      if (busyRef.current) return null;
+      busyRef.current = true;
       setBusy(true);
       setError(null);
       setTools([]);
@@ -192,17 +198,19 @@ export function useAgent({ onArchived, onMessage } = {}) {
         setError(err?.message ?? 'No se pudo hablar con el agente.');
       } finally {
         abortRef.current = null;
+        busyRef.current = false;
         setBusy(false);
         setStatus(null);
       }
+      return produced?.message ?? null;
     },
-    [busy, onArchived, onMessage],
+    [onArchived, onMessage],
   );
 
   const send = useCallback(
     (rawMessage) => {
       const message = String(rawMessage ?? '').trim();
-      if (!message) return Promise.resolve();
+      if (!message) return Promise.resolve(null);
       return runTurn({ message, liveTitle: message });
     },
     [runTurn],
@@ -211,7 +219,7 @@ export function useAgent({ onArchived, onMessage } = {}) {
   // Evento tipado desde la UI generada (Button o Form del renderer A2UI).
   const sendAction = useCallback(
     (payload) => {
-      if (!payload?.event?.name) return Promise.resolve();
+      if (!payload?.event?.name) return Promise.resolve(null);
       return runTurn({ action: payload, liveTitle: actionLabel(payload.event.name) });
     },
     [runTurn],
@@ -242,5 +250,12 @@ export function useAgent({ onArchived, onMessage } = {}) {
     });
   }, []);
 
-  return { busy, status, tools, view, error, send, sendAction, reset, cancel, showArchived, setError };
+  // Un objeto estable por cambio de estado. Antes se devolvía uno nuevo en
+  // cada render y todo lo que lo usaba como dependencia (efectos, callbacks)
+  // se rehacía sin parar: así se re-aplicaba el deep link del widget en cada
+  // render y la pantalla volvía sola a Chat.
+  return useMemo(
+    () => ({ busy, status, tools, view, error, send, sendAction, reset, cancel, showArchived, setError }),
+    [busy, status, tools, view, error, send, sendAction, reset, cancel, showArchived],
+  );
 }

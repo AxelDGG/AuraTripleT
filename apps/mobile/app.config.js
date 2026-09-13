@@ -101,11 +101,13 @@ module.exports = {
               name: 'NorteAssistant',
               label: 'Norte AI',
               description: 'Habla o escribe con el asistente Banorte',
-              minWidth: '250dp',
+              // Cuadrado de 2x2 celdas: píldora "Asistente" arriba y dos
+              // botones redondos (Abrir · Voz) abajo.
+              minWidth: '110dp',
               minHeight: '110dp',
-              targetCellWidth: 4,
+              targetCellWidth: 2,
               targetCellHeight: 2,
-              resizeMode: 'horizontal|vertical',
+              resizeMode: 'none',
               // Sin actualizaciones periódicas: el widget se refresca cuando la
               // app lo pide (tras un login o un cambio de saldo), no cada media hora.
               updatePeriodMillis: 0,

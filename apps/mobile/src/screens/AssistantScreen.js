@@ -8,6 +8,10 @@
 // También es el destino de los deep links del widget:
 //   norteai://chat?mode=voice → abre grabando
 //   norteai://chat?mode=text  → abre con el teclado listo
+//
+// Y desde aquí se llama al agente (botón de teléfono del composer): la
+// llamada se pinta encima del chat y lo que el agente construye durante ella
+// queda en la pestaña Chat al colgar.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
@@ -18,9 +22,11 @@ import Composer from '../components/Composer';
 import { useAgent } from '../chat/useAgent';
 import { useHistory } from '../chat/useHistory';
 import { useVoice } from '../voice/useVoice';
+import { useCall } from '../voice/useCall';
 import ChatTab from './assistant/ChatTab';
 import HistoryTab from './assistant/HistoryTab';
 import FoldersTab from './assistant/FoldersTab';
+import CallOverlay from './assistant/CallOverlay';
 import { color, space } from '../theme/tokens';
 
 // Cuánto dura la ventana en la que dos entregas del mismo link se consideran
@@ -52,7 +58,7 @@ export default function AssistantScreen({ route }) {
   const history = useHistory();
 
   // El agente habla solo si la persona llegó por voz: leer en voz alta algo que
-  // acaba de escribir sería ruido.
+  // acaba de escribir sería ruido. En llamada, la voz la lleva useCall.
   const speakIfVoice = useCallback(
     (message) => {
       if (arrivedByVoice.current) voice.speak(message);
@@ -62,12 +68,13 @@ export default function AssistantScreen({ route }) {
 
   // Cuando el agente archiva una vista, entra al historial al instante.
   const agent = useAgent({ onArchived: history.prepend, onMessage: speakIfVoice });
+  const call = useCall({ voice, agent });
 
   const send = useCallback(
     (text) => {
       setDraft('');
       setTab('chat');
-      agent.send(text);
+      return agent.send(text);
     },
     [agent],
   );
@@ -77,22 +84,28 @@ export default function AssistantScreen({ route }) {
     voice.dictate((text) => send(text));
   }, [send, voice]);
 
+  const startCall = useCallback(() => {
+    arrivedByVoice.current = false;
+    setTab('chat');
+    call.start();
+  }, [call]);
+
   // --- Deep links del widget y peticiones de otras pestañas ---
   //
   // Un mismo toque llega dos veces: por los params de react-navigation y por
   // expo-linking, con milisegundos de diferencia. Eso es lo que hay que
-  // descartar — y SOLO eso.
+  // descartar — y SOLO eso. Por eso la ventana es de tiempo y no de por vida,
+  // y la llave incluye el modo: dos entregas del mismo toque caen dentro de la
+  // ventana; dos toques de verdad, no.
   //
-  // Antes se descartaba cualquier link repetido para siempre, usando la marca
-  // `t` del widget como llave. Pero esa marca se calcula cuando el widget se
-  // dibuja, no cuando se toca, y con `updatePeriodMillis: 0` el widget no se
-  // vuelve a dibujar nunca: los dos botones mandaban la misma `t` de por vida.
-  // El resultado era que el widget servía una sola vez — tocabas "Abrir app" y
-  // "Voz" ya no hacía nada, porque su link se veía idéntico al anterior.
-  //
-  // Por eso la ventana es de tiempo y no de por vida, y la llave incluye el
-  // modo: dos entregas del mismo toque caen dentro de la ventana; dos toques de
-  // verdad, no.
+  // Y un link se aplica una vez por ENTREGA, nunca por render. La versión
+  // anterior tenía `applyLink` como dependencia de los efectos, y como se
+  // rehacía en cada render (dependía de objetos que cambiaban siempre), el
+  // link del widget se volvía a aplicar con cada cambio de estado: cambiar de
+  // pestaña devolvía a Chat, y con `mode=voice` la grabación se encendía y
+  // apagaba sola hasta trabar la pantalla. Ahora los efectos dependen solo de
+  // lo que de verdad es una entrega nueva (`params`, el evento `url`) y leen
+  // la última versión de `applyLink` a través de una ref.
   const applyLink = useCallback(
     ({ mode, prompt, key }) => {
       if (!mode && !prompt) return;
@@ -117,24 +130,27 @@ export default function AssistantScreen({ route }) {
     },
     [send, voice],
   );
+  const applyLinkRef = useRef(applyLink);
+  applyLinkRef.current = applyLink;
 
   const params = route?.params;
   useEffect(() => {
-    applyLink({
+    applyLinkRef.current({
       mode: params?.mode,
       prompt: params?.prompt,
       key: linkKey(params),
     });
-  }, [params, applyLink]);
+  }, [params]);
 
   // El widget puede abrir la app con la sesión bloqueada: en ese caso esta
   // pantalla se monta después del desbloqueo y react-navigation ya consumió el
   // link, así que se vuelve a leer de expo-linking para no perder la intención.
+  // Solo al montar: la URL inicial no cambia en toda la vida de la app.
   useEffect(() => {
     const handle = (url) => {
       if (!url) return;
       const { queryParams } = Linking.parse(url);
-      applyLink({
+      applyLinkRef.current({
         mode: queryParams?.mode,
         key: linkKey(queryParams),
       });
@@ -142,7 +158,7 @@ export default function AssistantScreen({ route }) {
     Linking.getInitialURL().then(handle).catch(() => {});
     const subscription = Linking.addEventListener('url', (event) => handle(event.url));
     return () => subscription.remove();
-  }, [applyLink]);
+  }, []);
 
   const openArchived = useCallback(
     (entry) => {
@@ -189,13 +205,17 @@ export default function AssistantScreen({ route }) {
               send(draft);
             }}
             onMicPress={dictateAndSend}
+            onCallPress={startCall}
             recording={voice.recording}
             transcribing={voice.transcribing}
             busy={agent.busy}
             autoFocus={autoFocus}
+            voiceError={voice.error}
           />
         </View>
       ) : null}
+
+      {call.active ? <CallOverlay call={call} /> : null}
     </KeyboardAvoidingView>
   );
 }

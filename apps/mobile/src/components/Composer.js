@@ -15,10 +15,12 @@ export default function Composer({
   onChangeText,
   onSubmit,
   onMicPress,
+  onCallPress,
   recording,
   transcribing,
   busy,
   autoFocus,
+  voiceError,
   placeholder = 'Escribe o habla con el agente Banorte…',
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
@@ -54,7 +56,14 @@ export default function Composer({
         <View style={styles.hint}>
           <View style={[styles.hintDot, transcribing && { backgroundColor: color.amber }]} />
           <Text variant="small" style={styles.hintText}>
-            {transcribing ? 'Transcribiendo lo que dijiste…' : 'Te escucho. Toca de nuevo para enviar.'}
+            {transcribing ? 'Transcribiendo lo que dijiste…' : 'Te escucho. Se envía solo cuando termines de hablar.'}
+          </Text>
+        </View>
+      ) : voiceError ? (
+        <View style={styles.hint}>
+          <Icon name="alert" size={14} color={color.red600} />
+          <Text variant="small" style={[styles.hintText, { color: color.red700 }]} numberOfLines={2}>
+            {voiceError}
           </Text>
         </View>
       ) : null}
@@ -102,6 +111,23 @@ export default function Composer({
           ) : null}
           <Icon name={recording ? 'close' : 'mic'} size={21} color={color.onRed} strokeWidth={2} />
         </Pressable>
+
+        {/* Llamada: hablar con el agente en bucle, sin tocar la pantalla. */}
+        {onCallPress ? (
+          <Pressable
+            onPress={onCallPress}
+            disabled={busy || recording || transcribing}
+            accessibilityRole="button"
+            accessibilityLabel="Llamar al asistente"
+            style={({ pressed }) => [
+              styles.call,
+              (busy || recording || transcribing) && { opacity: 0.5 },
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <Icon name="call" size={21} color={color.red} strokeWidth={1.9} />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -139,4 +165,16 @@ const styles = StyleSheet.create({
     ...shadow.red,
   },
   micRing: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: color.red },
+
+  call: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: color.surface,
+    borderWidth: 1.5,
+    borderColor: color.red,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.sm,
+  },
 });

@@ -15,17 +15,19 @@ import { toolLabel } from '../../chat/useAgent';
 import { color, radius, space } from '../../theme/tokens';
 import { fmtRelative } from '../../lib/format';
 
+// Los glifos son los del set propio (components/Icon): el mismo trazo que el
+// resto de la app, sin emojis que cada teléfono pinta a su manera.
 const SUGGESTIONS = [
-  { icon: '💳', label: 'Pagar menos intereses', prompt: 'Quiero pagar menos intereses de mi tarjeta: muéstrame cómo quedaría mi saldo a meses fijos y déjame elegir el plazo.' },
-  { icon: '💰', label: 'Saldo de mi cuenta', prompt: '¿Cuánto tengo en mis cuentas?' },
-  { icon: '📲', label: 'Últimas Transferencias', prompt: 'Muéstrame mis últimas transferencias' },
-  { icon: '📈', label: 'Resumen de Gastos', prompt: '¿En qué se me fue el dinero este mes?' },
+  { icon: 'card', label: 'Pagar menos intereses', prompt: 'Quiero pagar menos intereses de mi tarjeta: muéstrame cómo quedaría mi saldo a meses fijos y déjame elegir el plazo.' },
+  { icon: 'wallet', label: 'Saldo de mi cuenta', prompt: '¿Cuánto tengo en mis cuentas?' },
+  { icon: 'transfers', label: 'Últimas Transferencias', prompt: 'Muéstrame mis últimas transferencias' },
+  { icon: 'chartLine', label: 'Resumen de Gastos', prompt: '¿En qué se me fue el dinero este mes?' },
 ];
 
 function Welcome({ onPick, disabled }) {
   return (
     <View style={styles.welcome}>
-      <Image source={require('../../../assets/brand/Banorte_Header.png')} style={styles.welcomeLogo} resizeMode="contain" />
+      <Image source={require('../../../assets/brand/Banorte_Header_Red.png')} style={styles.welcomeLogo} resizeMode="contain" />
       <Text variant="h1" style={styles.welcomeTitle}>
         ¿Qué quieres ver hoy?
       </Text>
@@ -43,8 +45,9 @@ function Welcome({ onPick, disabled }) {
             accessibilityRole="button"
             style={({ pressed }) => [styles.suggestion, pressed && { opacity: 0.8 }]}
           >
+            <Icon name={item.icon} size={18} color={color.onRed} strokeWidth={1.9} />
             <Text variant="bodyStrong" style={styles.suggestionText}>
-              {`${item.icon}  ${item.label}`}
+              {item.label}
             </Text>
           </Pressable>
         ))}
@@ -162,9 +165,13 @@ const styles = StyleSheet.create({
   welcomeText: { textAlign: 'center', maxWidth: 320, lineHeight: 19 },
   suggestions: { width: '100%', gap: space.md, marginTop: space.xl },
   suggestion: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: space.sm,
     backgroundColor: color.muted2,
     borderRadius: radius.pill,
     paddingVertical: 13,
+    paddingHorizontal: space.lg,
     alignItems: 'center',
   },
   suggestionText: { color: color.surface },

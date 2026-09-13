@@ -18,9 +18,10 @@
 // tarjeta; de 1 a 3, una carta detrás; de 4 en adelante, tres.
 
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EmptyState, ErrorBanner, Loading, ScrollFade, Text } from '../../components/ui';
+import { SearchBar, useHideOnScroll } from '../../components/SearchBar';
 import Icon from '../../components/Icon';
 import VisualizationCard from './VisualizationCard';
 import { color, radius, shadow, space } from '../../theme/tokens';
@@ -165,6 +166,8 @@ export default function FoldersTab({ history, onOpenEntry, contentPadding }) {
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
   const { folders, entries, loading, error } = history;
+  // El buscador se recoge al bajar por la lista y vuelve al subir.
+  const collapsible = useHideOnScroll();
 
   const term = search.trim().toLowerCase();
   const filtered = term ? folders.filter((folder) => folder.label.toLowerCase().includes(term)) : folders;
@@ -175,31 +178,20 @@ export default function FoldersTab({ history, onOpenEntry, contentPadding }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={styles.searchWrap}>
-        <View style={styles.search}>
-          <Icon name="search" size={18} color={color.onRedMuted} />
-          <TextInput
-            style={styles.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="BUSCAR..."
-            placeholderTextColor={color.onRedMuted}
-            autoCapitalize="none"
-            accessibilityLabel="Buscar colección"
-          />
-          {search ? (
-            <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityLabel="Limpiar búsqueda">
-              <Icon name="close" size={17} color={color.onRedMuted} />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        accessibilityLabel="Buscar colección"
+        collapsible={collapsible}
+      />
 
       <View style={styles.listWrap}>
         <ScrollView
           contentContainerStyle={[styles.list, { paddingBottom: contentPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={collapsible.onScroll}
+          scrollEventThrottle={collapsible.scrollEventThrottle}
         >
           <ErrorBanner message={error} onRetry={history.reload} />
           {loading && !folders.length ? <Loading label="Cargando colecciones…" /> : null}
@@ -226,25 +218,6 @@ export default function FoldersTab({ history, onOpenEntry, contentPadding }) {
 }
 
 const styles = StyleSheet.create({
-  searchWrap: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    backgroundColor: color.red700,
-    borderRadius: radius.pill,
-    paddingHorizontal: space.lg,
-    minHeight: 46,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    letterSpacing: 1,
-    fontFamily: 'Manrope_700Bold',
-    color: color.onRed,
-    paddingVertical: 10,
-  },
-
   listWrap: { flex: 1 },
   list: { paddingHorizontal: space.lg, paddingTop: space.md, gap: space.lg },
 
