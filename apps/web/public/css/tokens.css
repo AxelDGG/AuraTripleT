@@ -20,6 +20,7 @@
   --surface: #ffffff;
   --surface-2: #f4f4f7;
   --surface-3: #e9e9ee;
+  --surface-4: #dcdde1;
   --line: rgba(20, 20, 28, 0.10);
   --line-2: rgba(20, 20, 28, 0.18);
 
@@ -47,7 +48,7 @@
   --dur-slow: 560ms;
 
   --topbar-h: 52px;
-  --rail-w: 300px;
+  --rail-w: 320px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -110,9 +111,7 @@ svg { display: block; }
 .skeleton {
   color: transparent !important;
   border-radius: var(--r-sm);
-  background: linear-gradient(100deg, var(--surface-3) 30%, #f7f7fa 50%, var(--surface-3) 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s linear infinite;
+  background: var(--surface-3);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -3,7 +3,6 @@
 // tools bancarias. Requiere GOOGLE_CLIENT_ID/SECRET y haber corrido
 // `npm run google:auth` una vez para generar el token con refresh_token.
 
-import { google } from 'googleapis';
 import { getAuthorizedClient, isGoogleConfigured } from './google/auth.js';
 
 const DEFAULT_CALENDAR_ID = 'primary';
@@ -13,9 +12,12 @@ const NOT_CONFIGURED_ERROR = {
     'Google Calendar no está configurado. Define GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET en el .env y corre "npm run google:auth" una vez para autorizar el acceso.',
 };
 
-function calendarClient() {
-  const auth = getAuthorizedClient();
+async function calendarClient() {
+  const auth = await getAuthorizedClient();
   if (!auth) return null;
+  // googleapis solo se instala si se usa Google Calendar: se importa on-demand
+  // para que el servidor bancario arranque aunque el paquete no esté presente.
+  const { google } = await import('googleapis');
   return google.calendar({ version: 'v3', auth });
 }
 
@@ -27,7 +29,7 @@ function toEventTime(value, timeZone) {
 
 export function createCalendarTools() {
   async function listEvents({ calendarId, timeMin, timeMax, query, maxResults } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     const { data } = await calendar.events.list({
       calendarId: calendarId || DEFAULT_CALENDAR_ID,
@@ -61,7 +63,7 @@ export function createCalendarTools() {
     timeZone,
     attendees,
   } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (!summary) return { error: 'summary es requerido.' };
     if (!start || !end) return { error: 'start y end son requeridos (ISO 8601, ej. 2026-03-05T10:00:00-06:00).' };
@@ -90,7 +92,7 @@ export function createCalendarTools() {
     end,
     timeZone,
   } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (!eventId) return { error: 'eventId es requerido.' };
     const tz = timeZone || DEFAULT_TIME_ZONE;
@@ -110,7 +112,7 @@ export function createCalendarTools() {
   }
 
   async function deleteEvent({ calendarId, eventId } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (!eventId) return { error: 'eventId es requerido.' };
     await calendar.events.delete({ calendarId: calendarId || DEFAULT_CALENDAR_ID, eventId });
@@ -118,7 +120,7 @@ export function createCalendarTools() {
   }
 
   async function checkAvailability({ timeMin, timeMax, calendarId } = {}) {
-    const calendar = calendarClient();
+    const calendar = await calendarClient();
     if (!calendar) return NOT_CONFIGURED_ERROR;
     if (!timeMin || !timeMax) return { error: 'timeMin y timeMax son requeridos (ISO 8601).' };
     const id = calendarId || DEFAULT_CALENDAR_ID;

@@ -53,7 +53,7 @@
     <!-- ===== Escenario: espacio de trabajo + riel de carpetas ===== -->
     <div class="stage">
 
-      <main class="workspace">
+      <main class="workspace suggest-visible">
         <section class="suggest" aria-labelledby="suggestTitle">
           <div class="suggest-head">
             <h1 class="suggest-title" id="suggestTitle" data-i18n="suggest.title">VISUALIZACIONES SUGERIDAS</h1>
@@ -75,6 +75,9 @@
         <section class="canvas" id="canvas" aria-live="polite"></section>
 
         <form class="composer" id="composer">
+          <button type="button" class="new-query-btn" id="newQueryBtn" aria-label="Nueva consulta" title="Nueva consulta">
+            <i data-icon="plus"></i>
+          </button>
           <div class="composer-field">
             <input type="text" id="composerInput" autocomplete="off" maxlength="4000"
               data-i18n-placeholder="composer.placeholder" placeholder="Escribe o habla con el agente Banorte…" />

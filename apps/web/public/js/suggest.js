@@ -9,7 +9,7 @@
   const { el } = window.UI;
 
   const SUGGESTIONS = [
-    { id: 'reestructura', icon: 'card', folder: 'promociones' },
+    { id: 'reestructura', icon: 'chartDebt', folder: 'promociones' },
     { id: 'gastos', icon: 'chartBar', folder: 'gastos' },
     { id: 'ganancias', icon: 'chartLine', folder: 'movimientos' },
     { id: 'flujo', icon: 'chartArea', folder: 'movimientos' },

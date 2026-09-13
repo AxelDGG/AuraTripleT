@@ -7,10 +7,16 @@
   min-height: 0;
   width: var(--rail-w);
   padding: 8px 14px 14px;
-  background: linear-gradient(180deg, var(--rail) 0%, var(--rail-2) 100%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--rail) 84%, transparent) 0%, color-mix(in srgb, var(--rail-2) 74%, transparent) 100%);
   border-left: 1px solid rgba(235, 0, 41, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   overflow: hidden;
   position: relative;
+  will-change: width;
+  animation: fade var(--dur-slow) var(--ease-out) both;
   transition: width 320ms var(--ease-out), padding 320ms var(--ease-out);
 }
 .rail.is-collapsed {
@@ -50,6 +56,7 @@
 }
 .rail-toggle-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur) var(--ease-spring); }
 .rail-toggle-btn:hover { background: rgba(255,255,255,0.55); }
+.rail-toggle-btn:active:not(.is-collapsed) { transform: translateY(1px) scale(0.94); }
 .rail.is-collapsed .rail-toggle-btn { left: 50%; transform: translateX(-50%); }
 .rail.is-collapsed .rail-toggle-btn svg { transform: rotate(180deg); }
 
@@ -67,6 +74,7 @@
   padding: 3px;
   border-radius: var(--r-md);
   background: rgba(255, 255, 255, 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 1px 2px rgba(158, 0, 24, 0.06);
 }
 
 .rail-tab {
@@ -78,15 +86,16 @@
   padding: 0 8px;
   border-radius: var(--r-sm);
   color: var(--red-700);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.08em;
   white-space: nowrap;
-  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out);
+  transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
 }
 .rail-tab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; }
 .rail-tab span { text-decoration: underline; text-decoration-color: rgba(158, 0, 24, 0.4); text-underline-offset: 3px; }
 .rail-tab:hover:not(.is-active) { background: rgba(255, 255, 255, 0.45); }
+.rail-tab:active { transform: scale(0.96); }
 
 .rail-tab.is-active {
   background: var(--surface);
@@ -134,7 +143,9 @@
   transition: background var(--dur-fast), color var(--dur-fast);
 }
 .rs-clear:hover { background: var(--red-tint); color: var(--red-600); }
-.rs-clear svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.rs-clear:hover svg { transform: scale(1.1); }
+.rs-clear:active svg { transform: scale(0.88); }
+.rs-clear svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; transition: transform var(--dur-fast) var(--ease-spring); }
 
 /* ---------- Paneles ---------- */
 .rail-panels { flex: 1; min-height: 0; display: flex; }
@@ -160,7 +171,7 @@
   z-index: 1;
   margin: 8px 0 3px;
   padding: 4px 2px;
-  background: linear-gradient(180deg, var(--rail) 70%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--rail) 88%, transparent) 70%, color-mix(in srgb, var(--rail) 0%, transparent));
   font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -186,8 +197,10 @@
     transform var(--dur-fast) var(--ease-spring);
   animation: slideLeft var(--dur) var(--ease-out) both;
   animation-delay: calc(min(var(--i, 0), 12) * 35ms);
+  will-change: transform;
 }
-.tl-item:hover { background: #fff; transform: translateX(-2px); border-color: var(--red-tint-2); }
+.tl-item:hover { background: #fff; transform: translateX(-2px); border-color: var(--red-tint-2); box-shadow: var(--shadow-sm); }
+.tl-item:active { background: #fff; transform: translateX(-1px) scale(0.98); border-color: var(--red-tint-2); }
 .tl-item.is-active { background: #fff; border-color: var(--red); box-shadow: var(--shadow-sm); }
 
 /* Miniatura: el Norte UI Spec real, renderizado a escala y congelado. */
@@ -317,7 +330,7 @@
 .folders {
   display: flex;
   flex-direction: column;
-  gap: 14px; /* más espacio para que las cartas apiladas no se toquen */
+  gap: 18px; /* más espacio entre cartas apiladas */
 }
 
 .folder {
@@ -364,12 +377,21 @@
   transform: translateY(3px) translateX(9px) rotate(2.5deg) scaleX(0.86);
 }
 
+/* Al acercar el cursor (sin abrir): las cartas de fondo se asoman */
+.folder:not(.is-open):hover::before {
+  opacity: 1;
+  transform: translateY(2px) translateX(-4px) rotate(-1.5deg) scaleX(0.93);
+}
+.folder:not(.is-open):hover::after {
+  transform: translateY(4px) translateX(4px) rotate(1.5deg) scaleX(0.86);
+}
+
 .folder-head {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 14px;
+  padding: 17px 16px;
   border-radius: var(--r-md);
   background: linear-gradient(135deg, var(--red) 0%, var(--red-700) 100%);
   color: #fff;
@@ -377,8 +399,11 @@
   text-align: left;
   transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur) var(--ease-out), border-radius var(--dur) var(--ease-out);
 }
-.folder-head:hover { transform: translateY(-2px); }
-.folder-head:active { transform: translateY(0); }
+.folder-head:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: var(--shadow-red), 0 14px 24px -14px rgba(235, 0, 41, 0.55);
+}
+.folder-head:active { transform: translateY(0) scale(0.99); }
 .folder.is-open .folder-head { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 
 .folder-name {
@@ -422,11 +447,11 @@
 
 .folder-list {
   margin: 0;
-  padding: 6px;
+  padding: 9px;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .folder-item {
@@ -434,7 +459,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: var(--r-sm);
   text-align: left;
   transition: background var(--dur-fast) var(--ease-out);
@@ -511,4 +536,32 @@
     opacity: 1 !important;
     pointer-events: auto !important;
   }
+}
+
+/* ---------- Accesibilidad: menos movimiento si el sistema lo pide ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .tl-item,
+  .tl-empty,
+  .folder,
+  .folder.is-open .folder-item,
+  .folder.is-closing .folder-item {
+    animation: none !important;
+  }
+  .tl-live-dots span,
+  .tl-live-status::before,
+  .tl-item.is-live {
+    animation: none !important;
+  }
+  .folder-count.is-bumped { transform: none; }
+  .tl-item:hover,
+  .tl-item:active { transform: none; }
+  .folder-head:hover,
+  .folder-head:active { transform: none; }
+  .folder::before,
+  .folder::after,
+  .folder.is-open::before,
+  .folder.is-open::after,
+  .folder:not(.is-open):hover::before,
+  .folder:not(.is-open):hover::after { transition: none; }
 }

@@ -48,9 +48,14 @@
 .overlay-body > .c-text li { font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
 .overlay-body > .c-text strong { color: var(--ink); font-weight: 700; }
 
+/* El título y mensaje ya van en la cabecera del turno: el Header grande que el
+   agente genera duplicaría el título en negrita. Se oculta en el lienzo (igual
+   que en el overlay); su información ya la comunica la cabecera. */
+.canvas .c-header.gen { display: none; }
+
 .card.gen > h3 {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.01em;
   margin-bottom: 12px;
 }
@@ -124,7 +129,23 @@
    El alto lo fija el tipo: lo cartesiano necesita una caja estable para que
    Chart.js calcule su área; lo radial es cuadrado y lo tabular (embudo, mapa de
    calor) crece con sus datos. */
-.c-chart.gen > h3 + .ch-sub { margin-top: -4px; }
+.c-chart.gen > h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+/* El título de la gráfica se omite si ya hay subtítulo explicativo debajo */
+.c-chart.gen:has(> .ch-sub) > h3 { display: none; }
+.c-chart.gen > .ch-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
 .ch-sub { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
 .ch-cap { margin-top: 10px; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
 
@@ -347,6 +368,30 @@
   background: var(--red-tint);
   color: var(--red-700);
 }
+
+/* ---------- Legibilidad: el texto que genera la IA más grande ---------- */
+.c-text.gen { font-size: 16px; }
+.overlay-body > .c-text p,
+.overlay-body > .c-text li { font-size: 16px; }
+.card.gen > h3 { font-size: 17px; }
+.c-header.gen p { font-size: 16px; }
+.k-label { font-size: 13.5px; }
+.k-delta { font-size: 14px; }
+.a-name { font-size: 15px; }
+.a-num { font-size: 13px; }
+.a-extra { font-size: 13.5px; }
+.ch-sub { font-size: 15px; }
+.c-chart.gen > .ch-sub { font-size: 15px; }
+.ch-cap { font-size: 13.5px; }
+.ch-label { font-size: 13.5px; }
+.ch-step-info { font-size: 15px; }
+.c-table table { font-size: 15px; }
+.c-table th { font-size: 12.5px; }
+.t-desc { font-size: 15.5px; }
+.t-meta { font-size: 13px; }
+.t-amt { font-size: 16px; }
+.f-desc { font-size: 15px; }
+.f-field label { font-size: 13px; }
 
 /* ---------- Miniaturas: sin sombras ni hover, el detalle no se lee a escala ---------- */
 .tl-thumb .gen,

@@ -5,7 +5,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { google } from 'googleapis';
 
 export const GOOGLE_CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
@@ -18,11 +17,14 @@ export function isGoogleConfigured() {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
-export function createOAuthClient() {
+export async function createOAuthClient() {
   const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI } = process.env;
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
     throw new Error('Faltan GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET en el .env.');
   }
+  // googleapis solo se instala si se usa Google Calendar: se importa on-demand
+  // para que el servidor bancario arranque aunque el paquete no esté presente.
+  const { google } = await import('googleapis');
   const client = new google.auth.OAuth2(
     GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET,
@@ -47,11 +49,11 @@ export function saveToken(tokens) {
 }
 
 // Cliente listo para llamar a la API (o null si falta config/autorización).
-export function getAuthorizedClient() {
+export async function getAuthorizedClient() {
   if (!isGoogleConfigured()) return null;
   const token = readToken();
   if (!token) return null;
-  const client = createOAuthClient();
+  const client = await createOAuthClient();
   client.setCredentials(token);
   return client;
 }
