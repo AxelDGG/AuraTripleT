@@ -11,7 +11,7 @@
 // tipografía) y además tiene un tope de tiempo.
 
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
@@ -58,7 +58,14 @@ export default function App() {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
-  if (!ready) return <View style={styles.splash} />;
+  // Misma marca y tamaño que el splash nativo: al quitarse, no se nota el cambio.
+  if (!ready) {
+    return (
+      <View style={styles.splash}>
+        <Image source={require('./assets/brand/Banorte_Mark_White.png')} style={styles.splashLogo} resizeMode="contain" />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -74,5 +81,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, backgroundColor: color.red },
+  splash: { flex: 1, backgroundColor: color.red, alignItems: 'center', justifyContent: 'center' },
+  splashLogo: { width: 156, height: 99 },
 });

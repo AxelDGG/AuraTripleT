@@ -10,7 +10,7 @@
 // guardas repartidas por las pantallas ni redirecciones a mitad de render: si no
 // hay sesión, las pantallas privadas sencillamente no existen.
 
-import { View, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
@@ -38,6 +38,7 @@ function BootScreen() {
   return (
     <View style={styles.boot}>
       <StatusBar style="light" />
+      <Image source={require('../../assets/brand/Banorte_Mark_White.png')} style={styles.bootLogo} resizeMode="contain" />
       <Loading label="" />
     </View>
   );
@@ -89,4 +90,5 @@ export default function RootNavigator() {
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: color.surface2 },
   boot: { flex: 1, backgroundColor: color.red, alignItems: 'center', justifyContent: 'center' },
+  bootLogo: { width: 156, height: 99, marginBottom: 24 },
 });
