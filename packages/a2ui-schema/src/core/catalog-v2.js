@@ -327,7 +327,7 @@ export function componentsPromptSectionV2({ only } = {}) {
     if (section) lines.push(`${title}: ${section}`);
   }
   lines.push(
-    'Bindings: un valor puede ser literal, {"path":"/ruta"} (JSON Pointer al dataModel) o {"call":"fn","args":{...}} (derivado; los args aceptan bindings); ambos aceptan "default" para cuando la ruta venga vacía. Lo que un control pueda cambiar vive en dataModel; lo derivado se describe con call y el cliente lo recalcula al instante sin llamarte. {"path":"/lista/*/campo"} recorre una lista. Un Button manda su event con el context resuelto y te llega como [action:name].',
+    'Bindings: un valor puede ser literal, {"path":"/ruta"} (JSON Pointer al dataModel) o {"call":"fn","args":{...}} (derivado; los args aceptan bindings); ambos aceptan "default" para cuando la ruta venga vacía. Lo que un control pueda cambiar vive en dataModel; lo derivado se describe con call y el cliente lo recalcula al instante sin llamarte. {"path":"/lista/*/campo"} recorre una lista. Un Button manda su event con el context resuelto y te llega como [action:name]. Un binding es SIEMPRE un valor JSON, nunca texto: NUNCA escribas {{...}} ni {path} dentro de una cadena (se vería la sintaxis cruda en pantalla). Para mezclar texto y datos en una sola cadena usa template: {"call":"template","args":{"text":"Vence el {d}","d":{"call":"date","args":{"v":{"path":"/x"}}}}}.',
     `Funciones: ${FUNCTION_GUIDE.join(' · ')}`,
     `Ejemplo: ${example}`,
   );

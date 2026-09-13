@@ -120,3 +120,48 @@ test('normalizeAgentReply acota enums y coacciona números en componentes sin bi
   assert.equal(bound.trend, 'sideways', 'con bindings no se toca: lo resuelve el cliente');
   assert.equal(reply.ui[0].level, 'info');
 });
+// Regresión: el modelo escribe los bindings como plantillas de texto dentro de
+// una cadena y la persona acaba viendo "{{call date args={…}}}" en pantalla.
+test('normalizeAgentReply rescata los bindings que el modelo escribió como texto', () => {
+  const reply = normalizeAgentReply({
+    message: 'Tu pago mínimo es de {{call "currency" args={"v":{"path":"/card/minimumPayment"}}}}.',
+    title: 'Pago de tarjeta',
+    dataModel: { card: { paymentDue: '2026-09-15', minimumPayment: 1870 } },
+    ui: [
+      {
+        component: 'Card',
+        title: 'Detalle del pago',
+        children: [
+          { component: 'Text', markdown: '**Fecha límite:** {{call date args={v:{path:\'/card/paymentDue\'}}}}' },
+          { component: 'Text', markdown: '{{call "currency" args={"v":{"path":"/card/minimumPayment"}}}}' },
+          { component: 'Text', markdown: 'sin plantillas' },
+        ],
+      },
+    ],
+  });
+
+  const [mixed, solo, plain] = reply.surface.components.filter((c) => c.component === 'Text');
+  assert.deepEqual(mixed.markdown, {
+    call: 'template',
+    args: { text: '**Fecha límite:** {v0}', v0: { call: 'date', args: { v: { path: '/card/paymentDue' } } } },
+  });
+  assert.deepEqual(solo.markdown, { call: 'currency', args: { v: { path: '/card/minimumPayment' } } }, 'una sola plantilla no necesita envoltura');
+  assert.equal(plain.markdown, 'sin plantillas');
+  assert.deepEqual(reply.warnings.inlineBindings.map((b) => b.id), [mixed.id, solo.id]);
+
+  // El mensaje se lee en voz alta: ahí el binding se resuelve a texto.
+  assert.equal(reply.message, 'Tu pago mínimo es de $1,870.00.');
+  assert.equal(reply.title, 'Pago de tarjeta');
+});
+
+test('un control con la ruta escrita como plantilla conserva su binding en vez de irse a /_controls', () => {
+  const reply = normalizeAgentReply({
+    message: 'm',
+    dataModel: { plan: { months: 12 } },
+    ui: [{ component: 'Slider', label: 'Plazo', value: '{{/plan/months}}', min: 6, max: 36 }],
+  });
+  const slider = reply.surface.components.find((c) => c.component === 'Slider');
+  assert.deepEqual(slider.value, { path: '/plan/months' });
+  assert.equal(reply.warnings.repairedControls.length, 0);
+  assert.equal(reply.surface.dataModel._controls, undefined);
+});

@@ -11,6 +11,7 @@ import { flattenTree } from './core/flatten.js';
 import { isValidPointer } from './core/pointer.js';
 import { toV1Components } from './core/compat.js';
 import { DEFAULT_FOLDER, normalizeFolder } from './folders.js';
+import { repairInlineBindings, resolveInlineString } from './inline-bindings.js';
 import { AccountCardSchema, KpiItemSchema, componentSchemas } from './schemas.js';
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -174,10 +175,10 @@ export function parseClientCapabilities(input) {
 
 const TITLE_MAX = 80;
 
-function deriveTitle(input, components, message) {
+function deriveTitle(rawTitle, components, message) {
   const find = (name) => components.find((c) => c.component === name && typeof c.title === 'string' && c.title.trim());
   const candidates = [
-    input?.title,
+    rawTitle,
     find('Header')?.title,
     components.find((c) => typeof c.title === 'string' && c.title.trim())?.title,
     String(message ?? '').split(/(?<=[.!?])\s/)[0],
@@ -210,6 +211,28 @@ function repairAction(action) {
     return { event: { name: action.name.trim(), context: isObject(action.context) ? action.context : {} } };
   }
   return null;
+}
+
+// Bindings que el modelo escribió como texto ("{{call date args={…}}}" dentro
+// de una cadena) convertidos al binding real. Va antes que todo lo demás: si
+// no, el `value` de un control se ve como literal y acaba en /_controls con la
+// sintaxis cruda dentro. La identidad y el árbol no se tocan; el resto sí,
+// incluidos `action` y los `template` de las listas, que también llevan
+// bindings aunque no se resuelvan con las demás props.
+const IDENTITY_PROPS = new Set(['id', 'component', 'catalogId', 'children', 'child']);
+
+function repairInlineProps(component, warnings) {
+  if (!isObject(component)) return component;
+  let touched = false;
+  const note = (text) => {
+    touched = true;
+    warnings.inlineBindings.push({ id: component.id, text });
+  };
+  const out = {};
+  for (const [key, value] of Object.entries(component)) {
+    out[key] = IDENTITY_PROPS.has(key) ? value : repairInlineBindings(value, note);
+  }
+  return touched ? out : component;
 }
 
 // Devuelve los componentes ya reparados y anota en `warnings` lo que se tocó.
@@ -272,8 +295,13 @@ const UpdateEntry = z.object({ path: pointer, value: z.any() }).passthrough();
 // registre en vez de que el síntoma sea "la pantalla salió incompleta".
 // Nunca lanza.
 export function normalizeAgentReply(input, { activeSurfaceId, surfaceId } = {}) {
-  const message = typeof input?.message === 'string' ? input.message : '';
   const folder = normalizeFolder(input?.folder ?? DEFAULT_FOLDER);
+  // El mensaje se lee en voz alta: un binding escrito ahí no tiene quien lo
+  // resuelva en el cliente, así que se resuelve aquí contra el dataModel y
+  // viaja ya como texto.
+  const spokenModel = isObject(input?.dataModel) ? input.dataModel : {};
+  const message = resolveInlineString(typeof input?.message === 'string' ? input.message : '', spokenModel);
+  const title = resolveInlineString(typeof input?.title === 'string' ? input.title : '', spokenModel);
 
   const rawUpdates = Array.isArray(input?.updates) ? input.updates : Array.isArray(input?.dataModelUpdates) ? input.dataModelUpdates : null;
   const wantsPatch = rawUpdates && !Array.isArray(input?.ui) && typeof input?.surfaceId === 'string';
@@ -284,10 +312,10 @@ export function normalizeAgentReply(input, { activeSurfaceId, surfaceId } = {}) 
         kind: 'patch',
         message,
         folder,
-        title: deriveTitle(input, [], message),
+        title: deriveTitle(title, [], message),
         surfaceId: activeSurfaceId,
         updates,
-        warnings: { dropped: [], repairedControls: [], deadButtons: [] },
+        warnings: { dropped: [], repairedControls: [], deadButtons: [], inlineBindings: [] },
       };
     }
   }
@@ -295,15 +323,19 @@ export function normalizeAgentReply(input, { activeSurfaceId, surfaceId } = {}) 
   const tree = Array.isArray(input?.ui) ? input.ui : isObject(input?.ui) ? input.ui : [];
   const flat = flattenTree(tree, { rootId: ROOT_ID });
   const model = isObject(input?.dataModel) ? { ...input.dataModel } : {};
-  const warnings = { dropped: flat.dropped ?? [], repairedControls: [], deadButtons: [] };
-  const components = repairComponents(flat.components.map(normalizeLiteralComponent), model, warnings);
+  const warnings = { dropped: flat.dropped ?? [], repairedControls: [], deadButtons: [], inlineBindings: [] };
+  const components = repairComponents(
+    flat.components.map((component) => normalizeLiteralComponent(repairInlineProps(component, warnings))),
+    model,
+    warnings,
+  );
   const id = surfaceId ?? newSurfaceId();
   const surface = { surfaceId: id, catalogId: CATALOG_ID, sendDataModel: true, components, dataModel: model };
   return {
     kind: 'surface',
     message,
     folder,
-    title: deriveTitle(input, components, message),
+    title: deriveTitle(title, components, message),
     surface,
     ui: normalizeV1(toV1Components(surface)),
     warnings,

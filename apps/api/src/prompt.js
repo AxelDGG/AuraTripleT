@@ -185,6 +185,7 @@ REGLAS:
 4. Si hay una SUPERFICIE ACTIVA y la persona solo cambia un valor de esa misma pantalla, NO la reconstruyas: responde con un patch ${PATCH_SHAPE}. Si la intención cambió, genera una superficie nueva con "ui".
 5. Si hay MEMORIA DEL CLIENTE, úsala para personalizar (plazo, cuenta, metas, cómo le gusta ver las cosas) sin recitarla; si la persona pide que recuerdes u olvides algo, confírmalo en el message. Si pregunta qué sabes de ella, cuéntaselo con esa lista.
 6. Si el turno viene de una acción ("[action:...]" o "[form:...]"), muestra su resultado: Alert de éxito o error y los datos ya actualizados.
+7. Los bindings son valores JSON, nunca texto: NUNCA escribas {{call ...}} ni {{/ruta}} dentro de una cadena. Para mezclar texto y dato usa {"call":"template","args":{"text":"Vence el {d}","d":{"call":"date","args":{"v":{"path":"/ruta"}}}}}. En "message" no van bindings: ahí escribe las cifras ya formateadas.
 
 ${componentsPromptSectionV2({ only: clientComponents })}
 

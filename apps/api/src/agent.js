@@ -62,6 +62,9 @@ function logSurfaceWarnings(surfaceId, warnings, notes) {
     parts.push(`controles sin ruta reparados: ${warnings.repairedControls.map((c) => `${c.component}→${c.path}`).join(', ')}`);
   }
   if (warnings?.deadButtons?.length) parts.push(`botones sin acción quitados: ${warnings.deadButtons.length}`);
+  if (warnings?.inlineBindings?.length) {
+    parts.push(`bindings escritos como texto rescatados: ${warnings.inlineBindings.map((b) => b.id).join(', ')}`);
+  }
   if (notes?.length) parts.push(`degradados para este cliente: ${notes.map((n) => `${n.from}→${n.to ?? 'quitado'}`).join(', ')}`);
   if (parts.length) console.warn(`[a2ui] superficie ${surfaceId}: ${parts.join(' · ')}`);
 }
