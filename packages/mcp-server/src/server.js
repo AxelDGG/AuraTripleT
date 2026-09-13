@@ -1,15 +1,26 @@
 // Servidor MCP de Banorte (transporte stdio).
 // Expone las herramientas bancarias para que el agente las consuma vía protocolo MCP.
 
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import dotenv from 'dotenv';
 import { z } from 'zod';
 import { createRepository } from './repositories/index.js';
 import { createBankingTools } from './tools.js';
+import { getAuthorizedClient, isGoogleConfigured } from './google/auth.js';
+import { createCalendarTools } from './calendarTools.js';
+
+// Si el proceso ya trae el .env cargado (p.ej. lanzado por apps/api) esto no
+// pisa nada; permite además correr este server solo (`npm run mcp`) o el
+// script de autorización de Google sin depender de quién lo invoque.
+dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
 
 // Fuente de datos según BANK_DATA_SOURCE (memory por defecto); cada proceso
 // del servidor tiene su propio estado.
 const tools = createBankingTools(createRepository());
+const calendarTools = createCalendarTools();
 
 const server = new McpServer({ name: 'banorte-banking', version: '1.0.0' });
 
@@ -134,6 +145,72 @@ server.tool(
     range: z.string().nullish().describe('1D | 1W | 1M | 6M | 1Y | ALL'),
   },
   async (args) => jsonResult(await tools.getPortfolioPerformance(args)),
+);
+
+server.tool(
+  'list_calendar_events',
+  'Lista los próximos eventos del Google Calendar del cliente (por ejemplo, citas con un asesor Banorte). Requiere Google Calendar autorizado.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    timeMin: z.string().nullish().describe('ISO 8601, default ahora'),
+    timeMax: z.string().nullish().describe('ISO 8601, opcional'),
+    query: z.string().nullish().describe('Texto libre para filtrar eventos'),
+    maxResults: z.number().nullish().describe('Máximo de eventos a devolver (default 10)'),
+  },
+  async (args) => jsonResult(await calendarTools.listEvents(args)),
+);
+
+server.tool(
+  'create_calendar_event',
+  'Crea un evento en Google Calendar, por ejemplo para agendar una cita con un asesor Banorte. start/end en ISO 8601 (ej. 2026-03-05T10:00:00-06:00) o YYYY-MM-DD para todo el día.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    summary: z.string().describe('Título del evento'),
+    description: z.string().nullish(),
+    location: z.string().nullish(),
+    start: z.string().describe('Inicio en ISO 8601 o YYYY-MM-DD'),
+    end: z.string().describe('Fin en ISO 8601 o YYYY-MM-DD'),
+    timeZone: z.string().nullish().describe('Default America/Mexico_City'),
+    attendees: z.array(z.string()).nullish().describe('Correos de invitados'),
+  },
+  async (args) => jsonResult(await calendarTools.createEvent(args)),
+);
+
+server.tool(
+  'update_calendar_event',
+  'Modifica un evento existente de Google Calendar. Solo se actualizan los campos enviados.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    eventId: z.string().describe('ID del evento a modificar'),
+    summary: z.string().nullish(),
+    description: z.string().nullish(),
+    location: z.string().nullish(),
+    start: z.string().nullish().describe('ISO 8601 o YYYY-MM-DD'),
+    end: z.string().nullish().describe('ISO 8601 o YYYY-MM-DD'),
+    timeZone: z.string().nullish(),
+  },
+  async (args) => jsonResult(await calendarTools.updateEvent(args)),
+);
+
+server.tool(
+  'delete_calendar_event',
+  'Elimina un evento de Google Calendar por su ID.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    eventId: z.string().describe('ID del evento a eliminar'),
+  },
+  async (args) => jsonResult(await calendarTools.deleteEvent(args)),
+);
+
+server.tool(
+  'check_calendar_availability',
+  'Revisa si el cliente tiene tiempo libre en un rango (freebusy), útil antes de proponer un horario de cita.',
+  {
+    calendarId: z.string().nullish().describe('ID del calendario, default "primary"'),
+    timeMin: z.string().describe('Inicio del rango, ISO 8601'),
+    timeMax: z.string().describe('Fin del rango, ISO 8601'),
+  },
+  async (args) => jsonResult(await calendarTools.checkAvailability(args)),
 );
 
 const transport = new StdioServerTransport();

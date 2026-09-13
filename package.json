@@ -17,7 +17,8 @@
     "mcp": "node packages/mcp-server/src/server.js",
     "db:setup": "node scripts/db-setup.js",
     "db:build-seed": "npm run db:build-seed -w @norte/mcp-server",
-    "db:verify": "node scripts/db-verify.js"
+    "db:verify": "node scripts/db-verify.js",
+    "google:auth": "npm run google:auth -w @norte/mcp-server"
   },
   "engines": {
     "node": ">=18"
