@@ -14,6 +14,12 @@
 //
 // El historial de la conversación se recorta a los últimos turnos: el agente
 // necesita contexto, pero mandarle todo hace la petición cara y lenta.
+//
+// La pantalla es un hilo: cada pregunta se agrega abajo con su respuesta
+// (`turns`), y `view` es la de la última. Cuando el agente responde con un
+// patch sobre la superficie anterior, esa superficie baja al turno nuevo y el
+// turno viejo se queda solo con su texto: la misma pantalla no puede estar dos
+// veces en el hilo.
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { streamAction, streamChat } from '../api/endpoints';
@@ -28,6 +34,7 @@ const TOOL_LABELS = {
   get_accounts: 'Leyendo tus cuentas',
   get_transactions: 'Revisando tus movimientos',
   get_spending_by_category: 'Analizando tus gastos',
+  get_spending_trend: 'Comparando tu gasto mes a mes',
   get_monthly_cashflow: 'Calculando tu flujo mensual',
   get_beneficiaries: 'Buscando tus beneficiarios',
   transfer_funds: 'Ejecutando la transferencia',
@@ -50,8 +57,35 @@ export function useAgent({ onArchived, onMessage } = {}) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   const [tools, setTools] = useState([]);
-  const [view, setView] = useState(null);
+  const [turns, setTurns] = useState([]);
   const [error, setError] = useState(null);
+  const view = turns.length ? turns[turns.length - 1].view : null;
+  const turnSeq = useRef(0);
+
+  // Agrega un turno al final del hilo y devuelve su id.
+  const pushTurn = (prompt, extra = {}) => {
+    const id = `t${++turnSeq.current}`;
+    setTurns((current) => [...current, { id, prompt, view: null, ...extra }]);
+    return id;
+  };
+
+  // Cambia la vista de un turno concreto (por id), sin tocar el resto.
+  const setTurnView = (id, next) => {
+    setTurns((current) =>
+      current.map((turn) => (turn.id === id ? { ...turn, view: typeof next === 'function' ? next(turn.view) : next } : turn)),
+    );
+  };
+
+  // La superficie pasa del turno que la tenía al turno nuevo.
+  const moveSurface = (surfaceId, toId) => {
+    setTurns((current) =>
+      current.map((turn) =>
+        turn.id !== toId && turn.view?.surfaceId === surfaceId
+          ? { ...turn, view: { ...turn.view, surfaceId: null, movedBelow: true } }
+          : turn,
+      ),
+    );
+  };
 
   const historyRef = useRef([]);
   const abortRef = useRef(null);
@@ -62,7 +96,7 @@ export function useAgent({ onArchived, onMessage } = {}) {
   const activeRef = useRef(null);
 
   const reset = useCallback(() => {
-    setView(null);
+    setTurns([]);
     setError(null);
     setTools([]);
     setStatus(null);
@@ -107,6 +141,9 @@ export function useAgent({ onArchived, onMessage } = {}) {
       // falla, la conversación siga teniendo sentido.
       const userTurn = action ? `[action:${action.event.name}] ${JSON.stringify(action.event.context ?? {})}` : message;
       historyRef.current = [...historyRef.current, { role: 'user', content: userTurn }];
+      const turnId = pushTurn(liveTitle);
+      const previousSurface = activeRef.current?.surfaceId ?? null;
+      const setView = (next) => setTurnView(turnId, next);
 
       let produced = null;
       let surfaceShown = false;
@@ -142,8 +179,20 @@ export function useAgent({ onArchived, onMessage } = {}) {
           case 'ui':
             produced = event;
             if (event.patch) {
-              // La superficie activa ya recibió los updateDataModel; solo cambia el mensaje.
-              setView((current) => (current ? { ...current, message: event.message ?? current.message, building: false } : current));
+              // La superficie activa ya recibió los updateDataModel: baja a este
+              // turno con el mensaje nuevo y el turno anterior se queda sin ella.
+              if (previousSurface) moveSurface(previousSurface, turnId);
+              setView((current) => ({
+                surfaceId: previousSurface,
+                title: current?.title ?? activeRef.current?.title ?? null,
+                folder: current?.folder ?? null,
+                message: event.message ?? current?.message ?? null,
+                ui: [],
+                prompt: userTurn,
+                createdAt: startedAt,
+                building: false,
+                patched: true,
+              }));
             } else if (event.surface?.surfaceId) {
               if (!surfaceStore.has(event.surface.surfaceId)) surfaceStore.apply({ version: 'v1.0', createSurface: event.surface });
               activeRef.current = { surfaceId: event.surface.surfaceId, title: event.title ?? '' };
@@ -176,6 +225,12 @@ export function useAgent({ onArchived, onMessage } = {}) {
             break;
           case 'history':
             if (event.entry) onArchived?.(event.entry);
+            break;
+          case 'memory':
+            // Memoria del agente: lo que recuperó antes de responder y lo que
+            // aprendió al cerrar (llega después de `ui`, así que la vista existe).
+            if (event.used?.length) setStatus(`Recordando lo que sé de ti (${event.used.length})…`);
+            if (event.learned?.length) setView((current) => (current ? { ...current, remembered: event.learned } : current));
             break;
           case 'error':
             setError(event.text ?? 'El agente no pudo responder.');
@@ -235,10 +290,13 @@ export function useAgent({ onArchived, onMessage } = {}) {
     if (surface?.surfaceId) {
       surfaceStore.apply({ version: 'v1.0', createSurface: surface });
       activeRef.current = { surfaceId: surface.surfaceId, title: entry.title };
+      // Si ya estaba en el hilo, no se duplica: baja al turno nuevo.
+      moveSurface(surface.surfaceId, null);
     } else {
       activeRef.current = null;
     }
-    setView({
+    const turnId = pushTurn(entry.title ?? entry.prompt ?? 'Del historial', { fromHistory: true });
+    setTurnView(turnId, {
       surfaceId: surface?.surfaceId ?? null,
       title: entry.title,
       folder: entry.folder,
@@ -255,7 +313,7 @@ export function useAgent({ onArchived, onMessage } = {}) {
   // se rehacía sin parar: así se re-aplicaba el deep link del widget en cada
   // render y la pantalla volvía sola a Chat.
   return useMemo(
-    () => ({ busy, status, tools, view, error, send, sendAction, reset, cancel, showArchived, setError }),
-    [busy, status, tools, view, error, send, sendAction, reset, cancel, showArchived],
+    () => ({ busy, status, tools, view, turns, error, send, sendAction, reset, cancel, showArchived, setError }),
+    [busy, status, tools, view, turns, error, send, sendAction, reset, cancel, showArchived],
   );
 }

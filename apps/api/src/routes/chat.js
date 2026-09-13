@@ -19,10 +19,22 @@ import { Router } from 'express';
 import { parseClientCapabilities, parseUserAction } from '@norte/a2ui-schema';
 import { describeAction } from '../actions.js';
 import { customerIdFor } from '../middleware/auth.js';
+import { DEMO_CUSTOMER_ID } from '../history-store.js';
 
 const MAX_MESSAGE_CHARS = 4000;
 const MAX_SURFACE_ID_CHARS = 120;
 const ALLOWED_HISTORY_ROLES = new Set(['user', 'assistant']);
+// La extracción de memoria corre después de la interfaz: si el LLM tarda más
+// que esto, el turno cierra sin aprender nada (mejor que dejar colgado el stream).
+const MEMORY_LEARN_TIMEOUT_MS = 12_000;
+
+const withTimeout = (promise, ms, label) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}: tiempo de espera agotado (${ms / 1000}s)`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
 
 function sanitizeHistory(history) {
   if (!Array.isArray(history)) return [];
@@ -75,6 +87,38 @@ async function saveToHistory({ historyStore, generatedUi, userMessage, isClientG
   }
 }
 
+// Memoria de largo plazo, en dos tiempos: antes del turno se recuperan los
+// hechos más parecidos a la pregunta (van al prompt); al cerrar, un LLM
+// extrae lo nuevo que vale la pena recordar y se guarda en Tiger. Ninguno de
+// los dos puede tumbar la respuesta: fallan en silencio (con log).
+async function recallMemories({ memoryStore, customerId, query, emit }) {
+  if (!memoryStore) return [];
+  try {
+    const memories = await memoryStore.recall({ customerId, query });
+    if (memories.length) emit({ type: 'memory', used: memories.map((m) => m.content) });
+    return memories;
+  } catch (err) {
+    console.error('[memoria] no se pudo recuperar:', err.message);
+    return [];
+  }
+}
+
+async function learnFromTurn({ memoryStore, memoryExtractor, generatedUi, userMessage, known, customerId, isClientGone, emit }) {
+  if (!memoryStore || !memoryExtractor || !generatedUi || generatedUi.fallback || isClientGone) return;
+  try {
+    const facts = await withTimeout(
+      memoryExtractor.extract({ userMessage, assistantMessage: generatedUi.message, known }),
+      MEMORY_LEARN_TIMEOUT_MS,
+      'extracción de memoria',
+    );
+    if (!facts.length) return;
+    const saved = await memoryStore.remember({ customerId, facts });
+    if (saved.length) emit({ type: 'memory', learned: saved.map((m) => m.content) });
+  } catch (err) {
+    console.error('[memoria] no se pudo aprender del turno:', err.message);
+  }
+}
+
 function openSseStream(res) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -84,13 +128,14 @@ function openSseStream(res) {
   });
 }
 
-// `runAgent` y `historyStore` se inyectan para poder probar la ruta sin un LLM
-// real ni base de datos.
-export function createChatRouter({ runAgent, historyStore }) {
+// `runAgent`, `historyStore`, `memoryStore` y `memoryExtractor` se inyectan para
+// poder probar la ruta sin un LLM real ni base de datos.
+export function createChatRouter({ runAgent, historyStore, memoryStore = null, memoryExtractor = null }) {
   const router = Router();
 
   async function handleTurn(req, res, { userMessage, action }) {
     const { history, surface, client } = req.body ?? {};
+    const customerId = customerIdFor(req) ?? DEMO_CUSTOMER_ID;
     openSseStream(res);
 
     // Si el cliente cierra la pestaña a mitad del stream, se aborta el agente
@@ -122,6 +167,9 @@ export function createChatRouter({ runAgent, historyStore }) {
       emit(event);
     };
 
+    // Lo que Norte recuerda de la persona, elegido por parecido con la pregunta.
+    const memories = await recallMemories({ memoryStore, customerId, query: userMessage, emit });
+
     try {
       await runAgent({
         userMessage,
@@ -131,19 +179,33 @@ export function createChatRouter({ runAgent, historyStore }) {
         action,
         surface: sanitizeSurface(surface),
         client: parseClientCapabilities(client),
+        memories,
       });
     } catch (err) {
       console.error('[agent] error:', err);
       emit({ type: 'error', text: `Ocurrió un error: ${String(err.message || err).slice(0, 300)}` });
     } finally {
-      await saveToHistory({
-        historyStore,
-        generatedUi,
-        userMessage,
-        isClientGone,
-        emit,
-        customerId: customerIdFor(req),
-      });
+      // Archivar y aprender corren a la vez: la interfaz ya está en pantalla.
+      await Promise.all([
+        saveToHistory({
+          historyStore,
+          generatedUi,
+          userMessage,
+          isClientGone,
+          emit,
+          customerId: customerIdFor(req),
+        }),
+        learnFromTurn({
+          memoryStore,
+          memoryExtractor,
+          generatedUi,
+          userMessage,
+          known: memories.map((m) => m.content),
+          customerId,
+          isClientGone,
+          emit,
+        }),
+      ]);
       emit({ type: 'done' });
       if (!isClientGone) res.end();
     }

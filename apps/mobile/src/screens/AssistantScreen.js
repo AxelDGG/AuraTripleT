@@ -9,9 +9,10 @@
 //   norteai://chat?mode=voice → abre grabando
 //   norteai://chat?mode=text  → abre con el teclado listo
 //
-// Y desde aquí se llama al agente (botón de teléfono del composer): la
-// llamada se pinta encima del chat y lo que el agente construye durante ella
-// queda en la pestaña Chat al colgar.
+// Y desde aquí se llama a la agente de voz (botón de teléfono del composer).
+// Primero se intenta con ElevenLabs, la misma "Maya" de la web; si el servidor
+// no tiene agente configurado o la build no trae WebRTC, la llamada cae al
+// modo local (escuchar → agente → leer en voz alta) que sí construye pantallas.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
@@ -23,6 +24,7 @@ import { useAgent } from '../chat/useAgent';
 import { useHistory } from '../chat/useHistory';
 import { useVoice } from '../voice/useVoice';
 import { useCall } from '../voice/useCall';
+import { useElevenLabsCall } from '../voice/useElevenLabsCall';
 import ChatTab from './assistant/ChatTab';
 import HistoryTab from './assistant/HistoryTab';
 import FoldersTab from './assistant/FoldersTab';
@@ -68,7 +70,9 @@ export default function AssistantScreen({ route }) {
 
   // Cuando el agente archiva una vista, entra al historial al instante.
   const agent = useAgent({ onArchived: history.prepend, onMessage: speakIfVoice });
-  const call = useCall({ voice, agent });
+  const localCall = useCall({ voice, agent });
+  const elevenCall = useElevenLabsCall();
+  const call = elevenCall.active ? elevenCall : localCall;
 
   const send = useCallback(
     (text) => {
@@ -84,11 +88,12 @@ export default function AssistantScreen({ route }) {
     voice.dictate((text) => send(text));
   }, [send, voice]);
 
-  const startCall = useCallback(() => {
+  const startCall = useCallback(async () => {
     arrivedByVoice.current = false;
     setTab('chat');
-    call.start();
-  }, [call]);
+    const started = await elevenCall.start();
+    if (!started) localCall.start();
+  }, [elevenCall, localCall]);
 
   // --- Deep links del widget y peticiones de otras pestañas ---
   //

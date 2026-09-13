@@ -18,9 +18,15 @@ import { createChatRouter } from './routes/chat.js';
 import { authRouter } from './routes/auth.js';
 import { voiceRouter } from './routes/voice.js';
 import { createHistoryRouter } from './routes/history.js';
+import { createMemoryRouter } from './routes/memory.js';
 import { a2uiRouter } from './routes/a2ui.js';
 import { createHistoryStore } from './history-store.js';
+import { createMemoryStore } from './memory-store.js';
+import { createMemoryExtractor } from './services/memory-extractor.js';
 import { attachSession, enforceAuthIfConfigured } from './middleware/auth.js';
+
+// MEMORY_ENABLED=false apaga la memoria del agente (recuperación y aprendizaje).
+const memoryEnabled = () => process.env.MEMORY_ENABLED !== 'false';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const WEB_PUBLIC_DIR = path.join(__dirname, '..', '..', 'web', 'public');
@@ -46,7 +52,13 @@ const API_REQUESTS_PER_MINUTE = 120;
 // El login es el endpoint que invita a probar contraseñas: se limita aparte y mucho más fuerte.
 const LOGIN_REQUESTS_PER_MINUTE = 10;
 
-export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR, historyStore = createHistoryStore() } = {}) {
+export function createApp({
+  agent = runAgent,
+  staticDir = WEB_PUBLIC_DIR,
+  historyStore = createHistoryStore(),
+  memoryStore = memoryEnabled() ? createMemoryStore() : null,
+  memoryExtractor = memoryEnabled() ? createMemoryExtractor() : null,
+} = {}) {
   const app = express();
 
   app.use(corsForClients);
@@ -82,7 +94,8 @@ export function createApp({ agent = runAgent, staticDir = WEB_PUBLIC_DIR, histor
   app.use(creditRouter);
   app.use(voiceRouter);
   app.use(createHistoryRouter({ historyStore }));
-  app.use(createChatRouter({ runAgent: agent, historyStore }));
+  app.use(createMemoryRouter({ memoryStore }));
+  app.use(createChatRouter({ runAgent: agent, historyStore, memoryStore, memoryExtractor }));
 
   app.use(errorHandler);
   return app;

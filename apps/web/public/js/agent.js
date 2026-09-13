@@ -440,6 +440,17 @@
             window.UI.toast(t('agent.saved', { folder: window.History.folderLabel(event.entry.folder) }), 'success');
           }
           break;
+        case 'memory':
+          // Memoria del agente: antes del turno, qué hechos recuperó; al cerrar,
+          // qué aprendió de esta conversación (ya persistido en Tiger).
+          if (event.used?.length) {
+            lastStatus = t('agent.recalling', { n: event.used.length });
+            thinking.label.textContent = lastStatus;
+          }
+          if (event.learned?.length) {
+            window.UI.toast(t('agent.remembered', { fact: event.learned.join(' · ') }), 'success');
+          }
+          break;
         case 'error':
           window.UI.toast(event.text, 'error');
           break;

@@ -303,3 +303,66 @@ test('restructureCardDebt aplica el plan: la tarjeta queda con la mensualidad y 
   assert.equal(card.balance, -23410.5, 'el saldo sigue siendo deuda; solo cambia cómo se paga');
   assert.equal((await tools.getCardRestructureOptions()).existingPlan.folio, result.folio);
 });
+
+// ===== Agregados y tendencia (el mismo contrato que los continuous aggregates de Tiger) =====
+
+// Repositorio con "hoy" fijo: el seed termina el 1 de septiembre de 2026.
+const septemberTools = () => freshTools({ now: () => new Date('2026-09-13T18:00:00Z') });
+
+test('getSpendingByCategory acepta una ventana de meses y trae menos que el histórico completo', async () => {
+  const { tools } = septemberTools();
+  const all = await tools.getSpendingByCategory();
+  const recent = await tools.getSpendingByCategory({ months: 3 });
+  assert.equal(all.months, undefined);
+  assert.equal(recent.months, 3);
+  assert.ok(recent.totalSpent < all.totalSpent);
+  assert.equal(round2(recent.categories.reduce((s, c) => s + c.total, 0)), recent.totalSpent);
+});
+
+test('getMonthlyCashflow cubre los seis meses del seed en orden', async () => {
+  const { tools } = freshTools();
+  const months = await tools.getMonthlyCashflow();
+  assert.deepEqual(months.map((m) => m.month), ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09']);
+  assert.ok(months.every((m) => m.income > 0 || m.expenses > 0));
+});
+
+test('getSpendingTrend compara el último mes cerrado contra la línea base', async () => {
+  const { tools } = septemberTools();
+  const trend = await tools.getSpendingTrend();
+  assert.equal(trend.months, 6);
+  assert.deepEqual(trend.series.map((s) => s.month), ['2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09']);
+  assert.equal(trend.lastCompleteMonth.month, '2026-08');
+  assert.equal(trend.currentMonth.month, '2026-09');
+  assert.equal(trend.currentMonth.partial, true);
+  // Línea base: abril a julio (los cuatro meses cerrados antes de agosto).
+  assert.equal(trend.baseline.months, 4);
+  assert.ok(trend.baseline.average > 0 && trend.baseline.stddev > 0);
+  // Agosto es el pico del seed: gasto por encima del promedio y tendencia al alza.
+  assert.ok(trend.lastCompleteMonth.spent > trend.baseline.average);
+  assert.ok(trend.deltaPct > 10);
+  assert.equal(trend.trend, 'sube');
+  assert.equal(typeof trend.zScore, 'number');
+  // El promedio móvil del primer mes es el mes mismo; después promedia hasta 3.
+  assert.equal(trend.series[0].movingAvg, trend.series[0].spent);
+  const [a, b, c] = trend.series.slice(0, 3).map((s) => s.spent);
+  assert.equal(trend.series[2].movingAvg, round2((a + b + c) / 3));
+  // Las categorías que más cambiaron vienen ordenadas por magnitud, con Compras entre las primeras.
+  assert.ok(trend.topChanges.length > 0 && trend.topChanges.length <= 5);
+  for (let i = 1; i < trend.topChanges.length; i++) {
+    assert.ok(Math.abs(trend.topChanges[i - 1].delta) >= Math.abs(trend.topChanges[i].delta));
+  }
+  assert.ok(trend.topChanges.some((c) => c.category === 'Compras'));
+});
+
+test('getSpendingTrend filtra por categoría y acota la ventana', async () => {
+  const { tools } = septemberTools();
+  const trend = await tools.getSpendingTrend({ category: 'restaurantes', months: 99 });
+  assert.equal(trend.months, 12);
+  assert.equal(trend.series.length, 12);
+  assert.deepEqual(trend.topChanges.map((c) => c.category), ['Restaurantes']);
+  assert.equal(trend.category, 'restaurantes');
+  const none = await tools.getSpendingTrend({ category: 'no-existe', months: 3 });
+  assert.equal(none.trend, 'sin_base');
+  assert.equal(none.deltaPct, null);
+  assert.deepEqual(none.topChanges, []);
+});

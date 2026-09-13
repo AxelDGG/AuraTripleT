@@ -27,5 +27,10 @@
   },
   "overrides": {
     "qs": ">=6.15.4"
+  },
+  "dependencies": {
+    "expo": "^57.0.22",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
   }
 }

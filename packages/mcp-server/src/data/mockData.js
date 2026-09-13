@@ -53,7 +53,9 @@ export const accounts = [
   },
 ];
 
-export const transactions = [
+// Movimientos recientes (agosto y septiembre), escritos uno por uno: son los
+// que aparecen en la demo y en las pruebas.
+const recentTransactions = [
   { id: 'TX-1041', accountId: 'ACC-001', date: '2026-09-01', description: 'Depósito de nómina - TECNOSOFT SA', category: 'Ingresos', amount: 28500.0, type: 'credit' },
   { id: 'TX-1040', accountId: 'ACC-001', date: '2026-09-01', description: 'Netflix México', category: 'Entretenimiento', amount: -299.0, type: 'debit' },
   { id: 'TX-1039', accountId: 'ACC-003', date: '2026-08-31', description: 'Amazon MX - Compra en línea', category: 'Compras', amount: -1849.9, type: 'debit' },
@@ -87,6 +89,146 @@ export const transactions = [
   { id: 'TX-1011', accountId: 'ACC-001', date: '2026-08-01', description: 'Renta departamento', category: 'Vivienda', amount: -9500.0, type: 'debit' },
   { id: 'TX-1010', accountId: 'ACC-001', date: '2026-07-31', description: 'Depósito de nómina - TECNOSOFT SA', category: 'Ingresos', amount: 28500.0, type: 'credit' },
 ];
+
+// Abril a julio: la base contra la que se compara el gasto reciente
+// (get_spending_trend). Mismo patrón de vida que agosto pero más contenido —
+// el gasto sube poco a poco cada mes y agosto es el pico (Liverpool, Amazon,
+// Home Depot, la transferencia a Juan). Cada fila: [día, cuenta, descripción,
+// categoría, monto]; el mes y el id se completan abajo.
+const EARLIER_MONTHS = {
+  '2026-04': [
+    [1, 'ACC-001', 'Renta departamento', 'Vivienda', -9500.0],
+    [1, 'ACC-001', 'Netflix México', 'Entretenimiento', -299.0],
+    [3, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2410.3],
+    [5, 'ACC-001', 'Vips Garza Sada', 'Restaurantes', -412.0],
+    [8, 'ACC-003', 'Pago recibido - Gracias', 'Pagos TDC', 8000.0],
+    [8, 'ACC-001', 'Pago tarjeta Banorte Oro', 'Pagos TDC', -8000.0],
+    [10, 'ACC-001', 'Oxxo Gas', 'Transporte', -900.0],
+    [11, 'ACC-001', 'Gimnasio SmartFit', 'Salud', -549.0],
+    [13, 'ACC-001', 'Agua y Drenaje MTY', 'Servicios', -320.0],
+    [14, 'ACC-003', 'Spotify Premium', 'Entretenimiento', -179.0],
+    [15, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+    [15, 'ACC-001', 'Soriana Híper', 'Supermercado', -1750.8],
+    [17, 'ACC-002', 'Transferencia a ahorro', 'Ahorro', 5000.0],
+    [17, 'ACC-001', 'Transferencia a ahorro', 'Ahorro', -5000.0],
+    [19, 'ACC-001', 'Uber Eats', 'Restaurantes', -356.0],
+    [20, 'ACC-001', 'Telmex - Internet', 'Servicios', -599.0],
+    [22, 'ACC-001', 'Farmacia Guadalajara', 'Salud', -298.5],
+    [23, 'ACC-002', 'Intereses ganados abril', 'Ingresos', 471.2],
+    [24, 'ACC-001', 'La Nacional - Restaurante', 'Restaurantes', -680.0],
+    [25, 'ACC-001', 'Mercado Libre', 'Compras', -1290.0],
+    [27, 'ACC-001', 'Uber viajes', 'Transporte', -164.0],
+    [28, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2205.6],
+    [29, 'ACC-001', 'CFE - Pago de servicio', 'Servicios', -812.0],
+    [30, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+  ],
+  '2026-05': [
+    [1, 'ACC-001', 'Renta departamento', 'Vivienda', -9500.0],
+    [1, 'ACC-001', 'Netflix México', 'Entretenimiento', -299.0],
+    [3, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2530.45],
+    [6, 'ACC-001', 'Starbucks San Pedro', 'Restaurantes', -198.0],
+    [8, 'ACC-003', 'Pago recibido - Gracias', 'Pagos TDC', 8000.0],
+    [8, 'ACC-001', 'Pago tarjeta Banorte Oro', 'Pagos TDC', -8000.0],
+    [10, 'ACC-003', 'Gasolinera Pemex Valle', 'Transporte', -1050.0],
+    [11, 'ACC-001', 'Gimnasio SmartFit', 'Salud', -549.0],
+    [13, 'ACC-001', 'Agua y Drenaje MTY', 'Servicios', -320.0],
+    [14, 'ACC-003', 'Spotify Premium', 'Entretenimiento', -179.0],
+    [15, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+    [16, 'ACC-001', 'Soriana Híper', 'Supermercado', -1820.3],
+    [17, 'ACC-002', 'Transferencia a ahorro', 'Ahorro', 5000.0],
+    [17, 'ACC-001', 'Transferencia a ahorro', 'Ahorro', -5000.0],
+    [18, 'ACC-003', 'Cinépolis VIP', 'Entretenimiento', -540.0],
+    [20, 'ACC-001', 'Telmex - Internet', 'Servicios', -599.0],
+    [21, 'ACC-001', 'Uber Eats', 'Restaurantes', -402.5],
+    [23, 'ACC-002', 'Intereses ganados mayo', 'Ingresos', 474.9],
+    [24, 'ACC-001', 'Farmacia Guadalajara', 'Salud', -365.0],
+    [26, 'ACC-003', 'Amazon MX - Compra en línea', 'Compras', -1425.0],
+    [27, 'ACC-001', 'Uber viajes', 'Transporte', -210.0],
+    [28, 'ACC-001', 'Vips Garza Sada', 'Restaurantes', -455.0],
+    [29, 'ACC-001', 'CFE - Pago de servicio', 'Servicios', -845.0],
+    [30, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2280.0],
+    [31, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+  ],
+  '2026-06': [
+    [1, 'ACC-001', 'Renta departamento', 'Vivienda', -9500.0],
+    [1, 'ACC-001', 'Netflix México', 'Entretenimiento', -299.0],
+    [3, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2610.0],
+    [5, 'ACC-001', 'Uber Eats', 'Restaurantes', -378.0],
+    [8, 'ACC-003', 'Pago recibido - Gracias', 'Pagos TDC', 8000.0],
+    [8, 'ACC-001', 'Pago tarjeta Banorte Oro', 'Pagos TDC', -8000.0],
+    [10, 'ACC-001', 'Oxxo Gas', 'Transporte', -980.0],
+    [11, 'ACC-001', 'Gimnasio SmartFit', 'Salud', -549.0],
+    [13, 'ACC-001', 'Agua y Drenaje MTY', 'Servicios', -320.0],
+    [14, 'ACC-003', 'Spotify Premium', 'Entretenimiento', -179.0],
+    [15, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+    [16, 'ACC-001', 'Soriana Híper', 'Supermercado', -1935.75],
+    [17, 'ACC-002', 'Transferencia a ahorro', 'Ahorro', 5000.0],
+    [17, 'ACC-001', 'Transferencia a ahorro', 'Ahorro', -5000.0],
+    [19, 'ACC-001', 'La Nacional - Restaurante', 'Restaurantes', -890.0],
+    [20, 'ACC-001', 'Telmex - Internet', 'Servicios', -599.0],
+    [21, 'ACC-003', 'Liverpool Monterrey', 'Compras', -1780.0],
+    [23, 'ACC-002', 'Intereses ganados junio', 'Ingresos', 478.6],
+    [24, 'ACC-001', 'Farmacia Guadalajara', 'Salud', -312.4],
+    [25, 'ACC-001', 'Starbucks San Pedro', 'Restaurantes', -230.0],
+    [27, 'ACC-001', 'Uber viajes', 'Transporte', -186.0],
+    [28, 'ACC-003', 'Home Depot Valle Oriente', 'Hogar', -1140.0],
+    [29, 'ACC-001', 'CFE - Pago de servicio', 'Servicios', -910.0],
+    [30, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2340.0],
+    [30, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+  ],
+  '2026-07': [
+    [1, 'ACC-001', 'Renta departamento', 'Vivienda', -9500.0],
+    [1, 'ACC-001', 'Netflix México', 'Entretenimiento', -299.0],
+    [3, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2655.9],
+    [5, 'ACC-001', 'Vips Garza Sada', 'Restaurantes', -468.0],
+    [8, 'ACC-003', 'Pago recibido - Gracias', 'Pagos TDC', 8000.0],
+    [8, 'ACC-001', 'Pago tarjeta Banorte Oro', 'Pagos TDC', -8000.0],
+    [10, 'ACC-003', 'Gasolinera Pemex Valle', 'Transporte', -1080.0],
+    [11, 'ACC-001', 'Gimnasio SmartFit', 'Salud', -549.0],
+    [13, 'ACC-001', 'Agua y Drenaje MTY', 'Servicios', -320.0],
+    [14, 'ACC-003', 'Spotify Premium', 'Entretenimiento', -179.0],
+    [15, 'ACC-001', 'Depósito de nómina - TECNOSOFT SA', 'Ingresos', 28500.0],
+    [16, 'ACC-001', 'Soriana Híper', 'Supermercado', -1988.0],
+    [17, 'ACC-002', 'Transferencia a ahorro', 'Ahorro', 5000.0],
+    [17, 'ACC-001', 'Transferencia a ahorro', 'Ahorro', -5000.0],
+    [18, 'ACC-001', 'Uber Eats', 'Restaurantes', -415.0],
+    [20, 'ACC-001', 'Telmex - Internet', 'Servicios', -599.0],
+    [22, 'ACC-003', 'Cinépolis VIP', 'Entretenimiento', -620.0],
+    [23, 'ACC-002', 'Intereses ganados julio', 'Ingresos', 480.1],
+    [24, 'ACC-001', 'Farmacia Guadalajara', 'Salud', -402.0],
+    [25, 'ACC-001', 'Mercado Libre', 'Compras', -1680.0],
+    [26, 'ACC-001', 'La Nacional - Restaurante', 'Restaurantes', -1015.0],
+    [27, 'ACC-001', 'Uber viajes', 'Transporte', -192.0],
+    [29, 'ACC-001', 'CFE - Pago de servicio', 'Servicios', -868.0],
+    [30, 'ACC-001', 'HEB Cumbres - Supermercado', 'Supermercado', -2410.0],
+  ],
+};
+
+// Los ids continúan hacia atrás desde el más viejo de los recientes (TX-1010):
+// el más nuevo de abril–julio es TX-1009. Se ordenan de más reciente a más
+// antiguo y, dentro del mismo día, el id mayor va primero: es el mismo orden que
+// devuelve Tiger (ts DESC, id DESC), así los dos repositorios coinciden fila a fila.
+function earlierTransactions() {
+  const rows = [];
+  for (const [month, items] of Object.entries(EARLIER_MONTHS)) {
+    items.forEach(([day, accountId, description, category, amount], index) => {
+      rows.push({ date: `${month}-${String(day).padStart(2, '0')}`, order: index, accountId, description, category, amount });
+    });
+  }
+  rows.sort((a, b) => b.date.localeCompare(a.date) || b.order - a.order);
+  let nextId = 1009;
+  return rows.map(({ order, ...row }) => ({
+    id: `TX-${nextId--}`,
+    accountId: row.accountId,
+    date: row.date,
+    description: row.description,
+    category: row.category,
+    amount: row.amount,
+    type: row.amount < 0 ? 'debit' : 'credit',
+  }));
+}
+
+export const transactions = [...recentTransactions, ...earlierTransactions()];
 
 export const investments = [
   { id: 'INV-01', name: 'Pagaré Banorte 28 días', type: 'Pagaré', amount: 50000, rate: 9.15, maturity: '2026-09-20', gain: 351.6 },

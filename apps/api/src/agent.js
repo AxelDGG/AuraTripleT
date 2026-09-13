@@ -41,6 +41,7 @@ REGLAS:
 2. Usa las herramientas para obtener datos reales ANTES de responder; nunca inventes cifras. Si necesitas varias, llámalas todas en la misma ronda.
 3. Tu respuesta final es ÚNICAMENTE un JSON válido (sin texto alrededor ni markdown): ${RESPONSE_SHAPE}
 4. Si hay una SUPERFICIE ACTIVA y la persona solo cambia un valor de esa misma pantalla (otro plazo, monto o cuenta), NO la reconstruyas: responde con un patch ${PATCH_SHAPE}. Si la intención cambió, genera una superficie nueva con "ui".
+5. Si hay MEMORIA DEL CLIENTE, úsala para personalizar (plazo, cuenta, metas, cómo le gusta ver las cosas) sin recitarla; si la persona pide que recuerdes u olvides algo, confírmalo en el message. Si pregunta qué sabes de ella, cuéntaselo con esa lista.
 
 ${componentsPromptSectionV2({ only: clientComponents })}
 
@@ -59,7 +60,7 @@ FLUJOS:
 - Simular crédito sin datos completos: Form con action "simulate_credit" (productId select CRED-AUTO/CRED-HIPO/CRED-PERS, amount, months).
 - Pagar menos intereses, reestructurar o diferir la tarjeta: llama get_card_restructure_options y arma el plan con dataModel {"plan":{"accountId","balance","annualRate","months","options"}}, un Slider (o ChoiceChips) ligado a /plan/months, Kpi derivados con amortize, totalInterest y effectiveAnnual, una Chart line con schedule (field "balance") y scheduleLabels, y un Button "Aplicar plan" con event "confirm_restructure" y context {"accountId","months":{"path":"/plan/months"}}. Tras "[action:confirm_restructure]" ejecuta restructure_card_debt y muestra Alert success con el folio y el nuevo pago mensual.
 
-QUÉ GRÁFICA POR HERRAMIENTA: get_spending_by_category → doughnut (≤6 categorías) o horizontal_bar ordenada; get_monthly_cashflow → composed (barras ingreso/gasto + línea neto) o profit_loss si el neto cruza cero; get_transactions → TransactionList (heatmap o scatter si preguntan por patrones); get_portfolio / get_investments → doughnut de composición y horizontal_bar de rendimiento; get_portfolio_performance → area; uso de línea de crédito, metas o salud financiera → gauge o ring con value y max. Decide el chartType antes de escribir los datos y no repitas una cifra en dos gráficas.
+QUÉ GRÁFICA POR HERRAMIENTA: get_spending_by_category → doughnut (≤6 categorías) o horizontal_bar ordenada; get_monthly_cashflow → composed (barras ingreso/gasto + línea neto) o profit_loss si el neto cruza cero; get_spending_trend (¿gasto más que antes?, patrones por mes) → line con labels = series.month y datasets spent / movingAvg, Kpi con deltaPct vs baseline.average y el mes cerrado, y Table o Text con topChanges (categoría, delta); get_transactions → TransactionList (heatmap o scatter si preguntan por patrones); get_portfolio / get_investments → doughnut de composición y horizontal_bar de rendimiento; get_portfolio_performance → area; uso de línea de crédito, metas o salud financiera → gauge o ring con value y max. Decide el chartType antes de escribir los datos y no repitas una cifra en dos gráficas.
 
 Los montos negativos son cargos.`;
 }
@@ -136,6 +137,22 @@ function summarizeModel(value, depth = 0) {
   return value;
 }
 
+// Lo que el agente recuerda de la persona (memory-store.js): hechos cortos
+// recuperados por parecido con la pregunta. Van como mensaje de sistema aparte
+// del prompt para que el proveedor los pueda cachear por separado.
+const MAX_MEMORIES = 8;
+function memoryMessage(memories) {
+  const items = (Array.isArray(memories) ? memories : [])
+    .map((m) => (typeof m === 'string' ? m : m?.content))
+    .filter((text) => typeof text === 'string' && text.trim())
+    .slice(0, MAX_MEMORIES);
+  if (!items.length) return null;
+  return {
+    role: 'system',
+    content: `MEMORIA DEL CLIENTE (aprendida en conversaciones anteriores; personaliza con esto sin recitarlo ni inventar más):\n${items.map((text) => `- ${text.trim()}`).join('\n')}`,
+  };
+}
+
 // Contexto de la superficie que la persona tiene en pantalla: el id (para los
 // patches) y su modelo de datos (lo que la persona movió antes de preguntar).
 function activeSurfaceMessage(surface) {
@@ -164,6 +181,8 @@ export async function runAgent({
   surface = null,
   client = null,
   streamDelayMs,
+  // Memoria de largo plazo: hechos sobre la persona que la ruta recuperó de Tiger.
+  memories = [],
 }) {
   const authorized = authorizedTools({ userMessage, action });
   const a2ui = createA2uiEmitter(emit);
@@ -173,8 +192,10 @@ export async function runAgent({
   emit({ type: 'status', text: 'Conectando con herramientas bancarias (MCP)...' });
   const tools = await listToolsForLlm();
 
+  const memory = memoryMessage(memories);
   const messages = [
     { role: 'system', content: buildSystemPrompt({ clientComponents: client?.components }) },
+    ...(memory ? [memory] : []),
     ...history.slice(-MAX_HISTORY_MESSAGES),
   ];
   const active = activeSurfaceMessage(surface);

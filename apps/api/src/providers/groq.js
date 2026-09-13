@@ -101,8 +101,9 @@ export function createGroqProvider({
         body: JSON.stringify({
           model,
           messages,
-          tools,
-          tool_choice: 'auto',
+          // Sin herramientas (p.ej. la extracción de memoria) no se manda
+          // tool_choice: Groq lo rechaza si no hay tools que elegir.
+          ...(Array.isArray(tools) && tools.length ? { tools, tool_choice: 'auto' } : {}),
           temperature: TEMPERATURE,
           max_tokens: MAX_TOKENS,
         }),

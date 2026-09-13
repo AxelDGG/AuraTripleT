@@ -32,7 +32,8 @@ export async function widgetTaskHandler(props) {
     case 'WIDGET_ADDED':
     case 'WIDGET_UPDATE':
     case 'WIDGET_RESIZED':
-      props.renderWidget(<Widget name={await readPreferredName()} />);
+      // widgetInfo trae el ancho y alto reales: el widget se dimensiona con eso.
+      props.renderWidget(<Widget name={await readPreferredName()} widgetInfo={props.widgetInfo} />);
       break;
 
     // Los toques no llegan aquí: los dos botones usan OPEN_URI y Android abre

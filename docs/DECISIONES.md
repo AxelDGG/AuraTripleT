@@ -10,7 +10,7 @@
  Clientes                    API (@norte/api)                 Agente                       Datos y acciones
 ┌──────────────┐   SSE    ┌──────────────────────┐   tools   ┌──────────────────┐   MCP    ┌─────────────────────┐
 │ Web (DOM)    │◄────────►│ POST /api/chat       │◄─────────►│ Groq             │◄────────►│ @norte/mcp-server   │
-│ Mobile (RN)  │  a2ui,ui │ POST /api/action     │           │ gpt-oss-120b     │  stdio   │ 16 tools (zod)      │
+│ Mobile (RN)  │  a2ui,ui │ POST /api/action     │           │ gpt-oss-120b     │  stdio   │ 17 tools (zod)      │
 │ Widget       │          │ GET  /api/a2ui/catalog│          │ prompt A2UI v2   │          │ memory | Tiger Data │
 └──────┬───────┘          └──────────┬───────────┘           └──────────────────┘          └─────────────────────┘
        │  runtime compartido         │  @norte/a2ui-schema
@@ -112,6 +112,60 @@ la validación fuerte se queda en el servidor.
 
 **Decisión.** `format.js` arma "$18,400.00", "32.4%" y "$18.4 mil" con strings. Hermes no implementa
 `notation: 'compact'` y el resultado tiene que ser idéntico en Node (tests), navegador y teléfono.
+
+## Agregados: las tools leen los continuous aggregates, no la lista de movimientos
+
+**Decisión.** `get_spending_by_category`, `get_monthly_cashflow` y `get_spending_trend` consultan
+`spending_by_category_monthly` y `monthly_cashflow` (continuous aggregates de TimescaleDB con
+refresh policy cada hora). El repositorio `memory` calcula lo mismo en JavaScript con la misma
+definición de buckets (`repositories/time-series.js`), y `npm run db:verify` comprueba la paridad.
+
+**Lo que se corrigió.** El agregado existía desde el primer despliegue pero las tools traían todos los
+movimientos y sumaban en JavaScript: el jurado veía el aggregate en el esquema y la app no lo usaba.
+
+**Tradeoff aceptado.** La policy deja fuera la última hora (`end_offset => 1 hour`), así que una
+transferencia hecha en la demo no estaría en la gráfica hasta el siguiente refresh. Se resolvió con
+`timescaledb.materialized_only = false`: TimescaleDB une lo materializado con lo que entró después
+de la marca, al costo de una consulta un poco más cara sobre el tramo reciente (decenas de filas).
+
+## Tendencia de gasto: Toolkit en SQL, misma matemática en memoria
+
+**Decisión.** `get_spending_trend` devuelve la serie mensual (huecos rellenados con
+`time_bucket_gapfill`), el promedio móvil de tres meses (ventana SQL) y la línea base de los meses
+cerrados anteriores al último resumida con `stats_agg` → `average` / `stddev` de TimescaleDB Toolkit.
+La tool convierte eso en variación porcentual, z-score y las categorías que más cambiaron; el agente
+lo pinta como línea + Kpi + tabla.
+
+**Descartado.** Calcular la tendencia en JavaScript sobre `get_transactions`. Funciona con cientos de
+filas, pero es justo el patrón que Tiger evita, y el reto pide "rápido y escalable con SQL".
+
+**Seed.** Para que la comparación tenga base, el seed pasó de 32 movimientos (agosto) a 130 (abril a
+septiembre) con un patrón de vida constante y agosto como pico (Liverpool, Amazon, Home Depot, la
+transferencia a Juan). `mockData.js` sigue siendo la única fuente: `db:build-seed` regenera el SQL.
+
+## Memoria del agente: hechos cortos con pgvector, no transcripciones
+
+**Decisión.** Tabla `customer_memory` en Tiger (`vector(768)` + índice HNSW). Al cerrar cada turno,
+un LLM lee lo que dijo la persona y lo que respondió Norte y extrae hasta tres hechos duraderos
+(preferencias, metas, contexto, decisiones); antes del siguiente turno se recuperan los cinco más
+parecidos a la pregunta (`embedding <=> consulta`, distancia coseno) y van al prompt como mensaje
+de sistema aparte. Los clientes lo ven: evento SSE `memory` con `used` (qué se recordó) y `learned`
+(qué se aprendió); `GET /api/memory` lista y `DELETE /api/memory/:id` olvida.
+
+**Por qué hechos y no historial.** El orquestador tiene 8k tokens por minuto en Groq: cinco frases
+cortas caben; cinco conversaciones no. Además un hecho ("prefiere plazos cortos") sirve meses después;
+una transcripción hay que volver a interpretarla cada vez.
+
+**Por qué Gemini para embeddings y extracción.** Ya está integrado, `gemini-embedding-001` acepta
+`outputDimensionality: 768` y su tier se mide por requests al día, así que la extracción (una llamada
+extra por turno) no come el presupuesto por minuto del orquestador. `MEMORY_LLM_PROVIDER` lo cambia.
+
+**Descartado.** `pgvectorscale` (StreamingDiskANN): sirve a millones de vectores; aquí son decenas por
+cliente y el HNSW de pgvector sobra. También se descartó `pgai` para generar embeddings dentro de la
+base: no está disponible en la instancia y ata la memoria a un proveedor desde el SQL.
+
+**Fallbacks.** Sin `GEMINI_API_KEY` la memoria se recupera por recencia; sin `DATABASE_URL` vive en el
+proceso; `MEMORY_ENABLED=false` la apaga. Ningún fallo de memoria tumba un turno: se registra y sigue.
 
 ## Datos: memoria por defecto, Tiger Data cuando hay `DATABASE_URL`
 

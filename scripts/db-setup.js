@@ -102,12 +102,17 @@ try {
   const version = await client.query("SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'").catch(() => null);
   await runFile(SCHEMA, 'data/seeds/001_schema.sql');
 
-  if (!schemaOnly) {
-    await runFile(SEED, 'data/seeds/002_seed.sql');
-    // El agregado continuo se crea WITH NO DATA: hay que materializarlo una vez
-    // tras cargar el seed para que la primera consulta ya tenga resultados.
-    console.log('Materializando spending_by_category_monthly…');
-    await client.query("CALL refresh_continuous_aggregate('spending_by_category_monthly', NULL, NULL)");
+  if (!schemaOnly) await runFile(SEED, 'data/seeds/002_seed.sql');
+
+  // Los agregados continuos se crean WITH NO DATA: hay que materializarlos una
+  // vez para que la primera consulta ya tenga resultados. Solo hasta el inicio
+  // del mes en curso: el mes actual se queda sin materializar y lo resuelve la
+  // agregación en tiempo real (materialized_only = false), así una transferencia
+  // hecha durante la demo aparece al instante. Si se materializara el mes en
+  // curso, lo que entre después quedaría invisible hasta el siguiente refresh.
+  for (const view of ['spending_by_category_monthly', 'monthly_cashflow']) {
+    console.log(`Materializando ${view} (meses cerrados)…`);
+    await client.query(`CALL refresh_continuous_aggregate('${view}', NULL, date_trunc('month', now()))`);
   }
 
   const counts = await client.query(`

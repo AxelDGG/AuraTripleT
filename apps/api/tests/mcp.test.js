@@ -9,12 +9,14 @@ after(async () => {
   await client.close();
 });
 
-test('el servidor MCP expone las 16 herramientas bancarias', async () => {
+test('el servidor MCP expone las 17 herramientas bancarias', async () => {
   const tools = await listToolsForLlm();
-  const names = tools.map((t) => t.function.name).sort();
+  // Las de Google Calendar solo se registran si el .env trae la autorización:
+  // no son parte del contrato bancario y dependen de la máquina.
+  const names = tools.map((t) => t.function.name).filter((name) => !name.includes('calendar')).sort();
   assert.deepEqual(names, [
     'get_accounts', 'get_beneficiaries', 'get_customer_profile', 'get_exchange_rates',
-    'get_investments', 'get_monthly_cashflow', 'get_spending_by_category', 'get_portfolio',
+    'get_investments', 'get_monthly_cashflow', 'get_spending_by_category', 'get_spending_trend', 'get_portfolio',
     'get_portfolio_performance', 'get_watchlist',
     'get_transactions', 'list_credit_products', 'simulate_credit', 'transfer_funds',
     'get_card_restructure_options', 'restructure_card_debt',

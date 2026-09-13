@@ -21,7 +21,7 @@ export default function Composer({
   busy,
   autoFocus,
   voiceError,
-  placeholder = 'Escribe o habla con el agente Banorte…',
+  placeholder = 'Escribe tu duda…',
 }) {
   const pulse = useRef(new Animated.Value(0)).current;
   const inputRef = useRef(null);

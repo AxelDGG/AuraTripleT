@@ -55,11 +55,23 @@ server.tool(
 
 server.tool(
   'get_spending_by_category',
-  'Resume los gastos agrupados por categoría (para gráficas de análisis de gastos).',
+  'Resume los gastos agrupados por categoría (para gráficas de análisis de gastos). Sale de un agregado mensual que la base mantiene al día.',
   {
     accountId: z.string().nullish().describe('Limitar a una cuenta específica'),
+    months: z.number().nullish().describe('Solo los últimos N meses calendario (3 a 12), incluido el actual. Si se omite, todo el historial'),
   },
   async (args) => jsonResult(await tools.getSpendingByCategory(args)),
+);
+
+server.tool(
+  'get_spending_trend',
+  'Tendencia del gasto mes a mes: serie con promedio móvil, último mes cerrado vs promedio anterior (deltaPct, zScore, unusual) y categorías que más cambiaron. Para "¿gasto más que antes?", patrones o cómo va el gasto.',
+  {
+    accountId: z.string().nullish().describe('Limitar a una cuenta, ej. ACC-001'),
+    category: z.string().nullish().describe('Limitar a una categoría, ej. Restaurantes'),
+    months: z.number().nullish().describe('Meses de la ventana, 3 a 12 (default 6), terminando en el mes actual'),
+  },
+  async (args) => jsonResult(await tools.getSpendingTrend(args)),
 );
 
 server.tool(

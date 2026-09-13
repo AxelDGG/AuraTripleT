@@ -11,10 +11,14 @@
 // tipografía) y además tiene un tope de tiempo.
 
 import { useEffect, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { AppState, Image, Platform, StyleSheet, View } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
+// Importarlo aquí registra los globals de WebRTC antes de que cualquier
+// pantalla los necesite. El provider da contexto a la llamada con ElevenLabs.
+import { ConversationProvider } from '@elevenlabs/react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import {
@@ -54,6 +58,26 @@ export default function App() {
 
   const ready = fontsLoaded || Boolean(fontError) || timedOut;
 
+  // La barra de botones de Android se esconde mientras la app está al frente
+  // (aparece con un deslizamiento desde abajo y se vuelve a ir sola). Se
+  // vuelve a pedir cada vez que la app regresa al frente porque el sistema la
+  // restaura al cambiar de app.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+    const hide = () => {
+      try {
+        NavigationBar.setHidden(true);
+      } catch {
+        // Sin barra que esconder (gestos) no pasa nada.
+      }
+    };
+    hide();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') hide();
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
@@ -71,9 +95,11 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <NavigationContainer ref={navigationRef} linking={linking}>
-            <RootNavigator />
-          </NavigationContainer>
+          <ConversationProvider>
+            <NavigationContainer ref={navigationRef} linking={linking}>
+              <RootNavigator />
+            </NavigationContainer>
+          </ConversationProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

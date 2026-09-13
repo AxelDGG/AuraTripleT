@@ -47,6 +47,11 @@ module.exports = {
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
         'android.permission.VIBRATE',
+        // Llamada con ElevenLabs (WebRTC por LiveKit): ruta de audio y red.
+        'android.permission.MODIFY_AUDIO_SETTINGS',
+        'android.permission.ACCESS_NETWORK_STATE',
+        'android.permission.WAKE_LOCK',
+        'android.permission.BLUETOOTH',
       ],
       intentFilters: [
         {
@@ -58,6 +63,10 @@ module.exports = {
       ],
     },
     plugins: [
+      // Módulos nativos de WebRTC para la llamada con la agente de ElevenLabs.
+      // Cambiarlos obliga a regenerar android/ (`npx expo prebuild`).
+      ['@livekit/react-native-expo-plugin', { android: { audioType: 'communication' } }],
+      '@config-plugins/react-native-webrtc',
       'expo-secure-store',
       'expo-font',
       'expo-audio',
@@ -101,13 +110,14 @@ module.exports = {
               name: 'NorteAssistant',
               label: 'Norte AI',
               description: 'Habla o escribe con el asistente Banorte',
-              // Cuadrado de 2x2 celdas: píldora "Asistente" arriba y dos
-              // botones redondos (Abrir · Voz) abajo.
+              // 2x2 celdas, como el widget de Claude: píldora "Asistente"
+              // arriba y dos botones redondos grandes (Abrir · Voz) abajo. Se
+              // puede estirar y el layout se recalcula con el tamaño real.
               minWidth: '110dp',
               minHeight: '110dp',
               targetCellWidth: 2,
               targetCellHeight: 2,
-              resizeMode: 'none',
+              resizeMode: 'horizontal|vertical',
               // Sin actualizaciones periódicas: el widget se refresca cuando la
               // app lo pide (tras un login o un cambio de saldo), no cada media hora.
               updatePeriodMillis: 0,

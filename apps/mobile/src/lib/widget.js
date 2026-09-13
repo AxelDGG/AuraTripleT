@@ -16,7 +16,7 @@ export async function refreshWidget() {
     const name = await readName();
     await requestWidgetUpdate({
       widgetName: 'NorteAssistant',
-      renderWidget: () => <NorteWidget name={name} />,
+      renderWidget: (widgetInfo) => <NorteWidget name={name} widgetInfo={widgetInfo} />,
       // Sin widget en la pantalla de inicio no hay nada que hacer y no es un error.
       widgetNotFound: () => {},
     });

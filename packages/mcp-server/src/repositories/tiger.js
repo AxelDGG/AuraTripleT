@@ -9,10 +9,12 @@
 import pg from 'pg';
 
 import { pgConnectionOptions } from './pg-options.js';
+import { monthWindow } from './time-series.js';
 
 const { Pool } = pg;
 
 const num = (value) => (value === null || value === undefined ? undefined : Number(value));
+const round2 = (value) => Math.round(Number(value) * 100) / 100;
 // DATE llega como Date de JS; el contrato usa 'YYYY-MM-DD' como en el seed.
 const day = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : (value ?? undefined));
 // Quita las claves undefined para que las filas se vean igual que los objetos del
@@ -119,6 +121,107 @@ export function createTigerRepository({ connectionString = process.env.DATABASE_
         sql += ` LIMIT $${values.length}`;
       }
       return (await all(sql, values)).map(mapTransaction);
+    },
+
+    // ===== Agregados: continuous aggregates de TimescaleDB =====
+    //
+    // Nada de esto vuelve a recorrer `transactions`: `spending_by_category_monthly`
+    // y `monthly_cashflow` ya tienen el mes materializado y, como corren con
+    // materialized_only = false, lo que entró después del último refresh (una
+    // transferencia hecha hace un minuto) se suma en tiempo real.
+
+    async spendingByCategory({ accountId, months } = {}) {
+      const since = months ? monthWindow(new Date(), months).start : null;
+      const rows = await all(
+        `SELECT category, sum(spent)::float8 AS total, sum(movements)::int AS movements
+           FROM spending_by_category_monthly
+          WHERE ($1::text IS NULL OR account_id = $1)
+            AND ($2::timestamptz IS NULL OR month >= $2)
+          GROUP BY category
+          ORDER BY total DESC, category`,
+        [accountId ?? null, since],
+      );
+      return rows.map((row) => ({ category: row.category, total: round2(row.total), movements: row.movements }));
+    },
+
+    async monthlyCashflow({ accountId } = {}) {
+      const rows = await all(
+        `SELECT to_char(month AT TIME ZONE 'UTC', 'YYYY-MM') AS month,
+                sum(income)::float8 AS income, sum(expenses)::float8 AS expenses, sum(movements)::int AS movements
+           FROM monthly_cashflow
+          WHERE ($1::text IS NULL OR account_id = $1)
+          GROUP BY 1
+          ORDER BY 1`,
+        [accountId ?? null],
+      );
+      return rows.map((row) => ({ month: row.month, income: round2(row.income), expenses: round2(row.expenses), movements: row.movements }));
+    },
+
+    // Tendencia de gasto: serie mensual con los huecos rellenos
+    // (time_bucket_gapfill), promedio móvil de 3 meses (ventana SQL) y línea
+    // base de los meses cerrados anteriores al último, resumida con
+    // stats_agg → average / stddev de TimescaleDB Toolkit.
+    async spendingTrend({ accountId, category, months = 6 } = {}) {
+      const window = monthWindow(new Date(), months);
+      const scope = [accountId ?? null, category ?? null, window.start, window.end];
+      const monthly = `
+        WITH monthly AS (
+          SELECT time_bucket_gapfill(INTERVAL '1 month', month, $3::timestamptz, $4::timestamptz) AS bucket,
+                 coalesce(sum(spent), 0)::float8 AS spent,
+                 coalesce(sum(movements), 0)::int AS movements
+            FROM spending_by_category_monthly
+           WHERE month >= $3 AND month < $4
+             AND ($1::text IS NULL OR account_id = $1)
+             AND ($2::text IS NULL OR lower(category) = lower($2))
+           GROUP BY bucket
+        )`;
+
+      const [seriesRows, [baseline], categoryRows] = await Promise.all([
+        all(
+          `${monthly}
+           SELECT to_char(bucket AT TIME ZONE 'UTC', 'YYYY-MM') AS month, spent, movements,
+                  avg(spent) OVER (ORDER BY bucket ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg
+             FROM monthly
+            ORDER BY bucket`,
+          scope,
+        ),
+        all(
+          `${monthly}
+           SELECT count(*)::int AS months,
+                  coalesce(average(stats_agg(spent)), 0) AS average,
+                  coalesce(stddev(stats_agg(spent)), 0) AS stddev
+             FROM monthly
+            WHERE bucket < $5::timestamptz`,
+          [...scope, window.lastCompleteStart],
+        ),
+        all(
+          `SELECT category,
+                  coalesce(sum(spent) FILTER (WHERE month >= $5::timestamptz AND month < $6::timestamptz), 0)::float8 AS last_month,
+                  (coalesce(sum(spent) FILTER (WHERE month < $5::timestamptz), 0) / $7::numeric)::float8 AS baseline_avg
+             FROM spending_by_category_monthly
+            WHERE month >= $3 AND month < $4
+              AND ($1::text IS NULL OR account_id = $1)
+              AND ($2::text IS NULL OR lower(category) = lower($2))
+            GROUP BY category
+            ORDER BY last_month DESC, category`,
+          [...scope, window.lastCompleteStart, window.currentStart, Math.max(window.months.length - 2, 1)],
+        ),
+      ]);
+
+      return {
+        series: seriesRows.map((row) => ({
+          month: row.month,
+          spent: round2(row.spent),
+          movements: row.movements,
+          movingAvg: round2(row.moving_avg),
+        })),
+        baseline: { months: baseline.months, average: round2(baseline.average), stddev: round2(baseline.stddev) },
+        categories: categoryRows.map((row) => ({
+          category: row.category,
+          lastMonth: round2(row.last_month),
+          baselineAvg: round2(row.baseline_avg),
+        })),
+      };
     },
 
     async listInvestments() {

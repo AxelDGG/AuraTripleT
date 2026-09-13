@@ -15,11 +15,26 @@ const MAX_TRANSACTION_LIMIT = 50;
 export const MAX_TRANSFER_AMOUNT = 50000;
 
 const round2 = (n) => Math.round(n * 100) / 100;
+const round1 = (n) => Math.round(n * 10) / 10;
 const formatMxn = (n) => n.toLocaleString('es-MX');
 
 function effectiveLimit(limit) {
   const wanted = Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_TRANSACTION_LIMIT;
   return Math.min(wanted, MAX_TRANSACTION_LIMIT);
+}
+
+// Tendencia de gasto: ventana de meses calendario que termina en el mes en curso.
+const DEFAULT_TREND_MONTHS = 6;
+const MIN_TREND_MONTHS = 3;
+const MAX_TREND_MONTHS = 12;
+// Hasta ±10% contra la línea base se lee como "estable".
+const TREND_STABLE_PCT = 10;
+const UNUSUAL_Z = 2;
+const TOP_CHANGES = 5;
+
+function trendMonths(months, fallback) {
+  if (!Number.isFinite(months) || months <= 0) return fallback;
+  return Math.min(Math.max(Math.trunc(months), MIN_TREND_MONTHS), MAX_TREND_MONTHS);
 }
 
 // Reestructura de tarjeta: el saldo se convierte en un plan de pagos fijos a
@@ -65,36 +80,65 @@ export function createBankingTools(repo) {
     return repo.listTransactions({ accountId, category, limit: effectiveLimit(limit) });
   }
 
-  async function getSpendingByCategory({ accountId } = {}) {
-    const debits = (await repo.listTransactions({ accountId })).filter((t) => t.type === 'debit');
-    const totals = new Map();
-    for (const t of debits) {
-      totals.set(t.category, (totals.get(t.category) ?? 0) + Math.abs(t.amount));
-    }
-    const categories = [...totals.entries()]
-      .map(([category, total]) => ({ category, total: round2(total) }))
-      .sort((a, b) => b.total - a.total);
+  // Los agregados los resuelve el repositorio (en Tiger, continuous aggregates
+  // que TimescaleDB mantiene al día; en memoria, un recorrido de la lista).
+  async function getSpendingByCategory({ accountId, months } = {}) {
+    const span = trendMonths(months, null);
+    const categories = (await repo.spendingByCategory({ accountId, months: span })).map(({ category, total }) => ({ category, total }));
     const totalSpent = round2(categories.reduce((s, c) => s + c.total, 0));
-    return { categories, totalSpent };
+    return { categories, totalSpent, ...(span ? { months: span } : {}) };
   }
 
   async function getMonthlyCashflow() {
-    const byMonth = new Map();
-    for (const t of await repo.listTransactions()) {
-      const month = t.date.slice(0, 7);
-      const entry = byMonth.get(month) ?? { month, income: 0, expenses: 0 };
-      const income = entry.income + (t.amount > 0 ? t.amount : 0);
-      const expenses = entry.expenses + (t.amount < 0 ? Math.abs(t.amount) : 0);
-      byMonth.set(month, { month, income, expenses });
-    }
-    return [...byMonth.values()]
-      .map((e) => ({
-        month: e.month,
-        income: round2(e.income),
-        expenses: round2(e.expenses),
-        net: round2(e.income - e.expenses),
+    return (await repo.monthlyCashflow()).map((e) => ({
+      month: e.month,
+      income: e.income,
+      expenses: e.expenses,
+      net: round2(e.income - e.expenses),
+    }));
+  }
+
+  // Tendencia de gasto: ¿este mes gasto más o menos que de costumbre, y en qué?
+  // El repositorio entrega la serie mensual, la línea base (promedio y
+  // desviación estándar de los meses cerrados anteriores al último) y el
+  // detalle por categoría; aquí se convierte en la lectura que el agente
+  // explica: variación porcentual, z-score y las categorías que más cambiaron.
+  async function getSpendingTrend({ accountId, category, months } = {}) {
+    const span = trendMonths(months, DEFAULT_TREND_MONTHS);
+    const { series, baseline, categories } = await repo.spendingTrend({ accountId, category, months: span });
+    const currentMonth = series[series.length - 1];
+    const lastCompleteMonth = series[series.length - 2];
+    const hasBaseline = baseline.months > 0 && baseline.average > 0;
+    const deltaPct = hasBaseline ? round1(((lastCompleteMonth.spent - baseline.average) / baseline.average) * 100) : null;
+    const zScore = hasBaseline && baseline.stddev > 0 ? round2((lastCompleteMonth.spent - baseline.average) / baseline.stddev) : null;
+    const trend = deltaPct === null ? 'sin_base' : deltaPct > TREND_STABLE_PCT ? 'sube' : deltaPct < -TREND_STABLE_PCT ? 'baja' : 'estable';
+    const topChanges = categories
+      .map((c) => ({
+        ...c,
+        delta: round2(c.lastMonth - c.baselineAvg),
+        deltaPct: c.baselineAvg > 0 ? round1(((c.lastMonth - c.baselineAvg) / c.baselineAvg) * 100) : null,
       }))
-      .sort((a, b) => a.month.localeCompare(b.month));
+      .filter((c) => c.delta !== 0)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+      .slice(0, TOP_CHANGES);
+    // El resultado va al prompt del orquestador (8k tokens por minuto en Groq):
+    // solo lo que la gráfica y el mensaje necesitan.
+    const compact = ({ month, spent, movingAvg }) => ({ month, spent, movingAvg });
+    return {
+      months: span,
+      ...(accountId ? { accountId } : {}),
+      ...(category ? { category } : {}),
+      series: series.map(compact),
+      currentMonth: { ...compact(currentMonth), partial: true },
+      lastCompleteMonth: compact(lastCompleteMonth),
+      baseline,
+      deltaPct,
+      zScore,
+      trend,
+      // Dos desviaciones estándar: el mes se sale de lo habitual y vale la pena avisar.
+      unusual: zScore !== null && Math.abs(zScore) >= UNUSUAL_Z,
+      topChanges,
+    };
   }
 
   async function getInvestments() {
@@ -349,6 +393,7 @@ export function createBankingTools(repo) {
     getAccounts,
     getTransactions,
     getSpendingByCategory,
+    getSpendingTrend,
     getMonthlyCashflow,
     getInvestments,
     getExchangeRates,

@@ -39,7 +39,7 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
                                        ┌──────────────────────┐
                                        │ @norte/mcp-server     │
                                        │ banorte-banking       │
-                                       │ 16 herramientas       │
+                                       │ 17 herramientas       │
                                        │ (datos mock)          │
                                        └──────────────────────┘
 ```
@@ -153,7 +153,7 @@ apps/web/public/               @norte/web
   renderer.js                  Renderer v1 (miniaturas del historial)
 packages/mcp-server/           @norte/mcp-server
   src/index.js                 Exporta SERVER_PATH, createBankingTools y los repositorios
-  src/server.js                Servidor MCP (stdio) con 16 herramientas validadas con zod
+  src/server.js                Servidor MCP (stdio) con 17 herramientas validadas con zod
   src/tools.js                 createBankingTools(repo): reglas de negocio puras
   src/repositories/            memory.js (seeds) · index.js (BANK_DATA_SOURCE); tiger pendiente
   src/data/mockData.js         Cliente, cuentas, movimientos, inversiones, divisas, créditos

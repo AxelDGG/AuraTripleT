@@ -58,6 +58,12 @@ await same('findBeneficiary(BEN-02)', (r) => r.findBeneficiary('BEN-02'));
 await same('listCreditProducts', (r) => r.listCreditProducts());
 await same('listHoldings', (r) => r.listHoldings());
 await same('listWatchlist', (r) => r.listWatchlist());
+// Agregados: en Tiger salen de los continuous aggregates (+ Toolkit); en memoria, de la lista.
+await same('spendingByCategory', (r) => r.spendingByCategory());
+await same('spendingByCategory últimos 3 meses, ACC-001', (r) => r.spendingByCategory({ accountId: 'ACC-001', months: 3 }));
+await same('monthlyCashflow', (r) => r.monthlyCashflow());
+await same('spendingTrend 6 meses', (r) => r.spendingTrend({ months: 6 }));
+await same('spendingTrend Restaurantes', (r) => r.spendingTrend({ category: 'restaurantes', months: 4 }));
 await check('listExchangeRates.updatedAt es el mismo instante', async () => {
   const [t, m] = [await tiger.listExchangeRates(), await memory.listExchangeRates()];
   assert.equal(new Date(t.updatedAt).getTime(), new Date(m.updatedAt).getTime());

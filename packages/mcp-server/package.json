@@ -2,7 +2,7 @@
   "name": "@norte/mcp-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Servidor MCP banorte-banking: 14 herramientas bancarias validadas con zod (stdio)",
+  "description": "Servidor MCP banorte-banking: 17 herramientas bancarias validadas con zod (stdio)",
   "type": "module",
   "main": "src/index.js",
   "exports": {

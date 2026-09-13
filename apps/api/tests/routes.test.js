@@ -6,23 +6,34 @@ import { createApp } from '../src/app.js';
 import { getMcpClient } from '../src/mcp-client.js';
 import { createRateLimiter } from '../src/middleware/rate-limit.js';
 import { createMemoryHistoryStore } from '../src/history-store.js';
+import { createInMemoryMemoryStore } from '../src/memory-store.js';
 
 let server;
 let baseUrl;
 let lastAgentInput;
 let historyStore;
+let memoryStore;
 
-async function fakeAgent({ userMessage, history, emit, action, surface, client }) {
-  lastAgentInput = { userMessage, history, action, surface, client };
+async function fakeAgent({ userMessage, history, emit, action, surface, client, memories }) {
+  lastAgentInput = { userMessage, history, action, surface, client, memories };
   emit({ type: 'status', text: 'pensando' });
   emit({ type: 'ui', message: 'ok', title: 'Prueba', folder: 'gastos', ui: [{ type: 'text', markdown: userMessage }] });
   return { message: 'ok', ui: [] };
 }
 
+// Extractor falso: "recuerda que ..." se vuelve un hecho; lo demás, nada.
+const fakeExtractor = {
+  async extract({ userMessage }) {
+    const match = /recuerda que (.+)/i.exec(userMessage);
+    return match ? [{ kind: 'preference', content: match[1].trim() }] : [];
+  },
+};
+
 before(async () => {
   process.env.GROQ_API_KEY = process.env.GROQ_API_KEY || 'test-key';
   historyStore = createMemoryHistoryStore();
-  const app = createApp({ agent: fakeAgent, historyStore });
+  memoryStore = createInMemoryMemoryStore();
+  const app = createApp({ agent: fakeAgent, historyStore, memoryStore, memoryExtractor: fakeExtractor });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
   });
@@ -177,6 +188,34 @@ test('el aviso de error del agente no ensucia el historial', async () => {
   } finally {
     await new Promise((resolve) => s.close(resolve));
   }
+});
+
+test('la memoria del agente aprende del turno, se recupera en el siguiente y se puede listar y borrar', async () => {
+  // Turno 1: no hay memorias todavía; el extractor guarda una al cerrar.
+  const first = await postJson('/api/chat', { message: 'recuerda que prefiero plazos cortos' });
+  const firstEvents = sseEvents(await first.text());
+  assert.deepEqual(lastAgentInput.memories, []);
+  const learned = firstEvents.find((e) => e.type === 'memory' && e.learned);
+  assert.deepEqual(learned.learned, ['prefiero plazos cortos']);
+  assert.equal(firstEvents.at(-1).type, 'done');
+
+  // Turno 2: la memoria llega al agente y el cliente ve qué se usó.
+  const second = await postJson('/api/chat', { message: 'quiero reestructurar mi tarjeta' });
+  const secondEvents = sseEvents(await second.text());
+  assert.deepEqual(lastAgentInput.memories.map((m) => m.content), ['prefiero plazos cortos']);
+  assert.deepEqual(secondEvents.find((e) => e.type === 'memory').used, ['prefiero plazos cortos']);
+  assert.ok(!secondEvents.some((e) => e.type === 'memory' && e.learned), 'sin hechos nuevos no se emite learned');
+
+  // Transparencia: se lista y se borra.
+  const list = await (await fetch(`${baseUrl}/api/memory`)).json();
+  assert.equal(list.enabled, true);
+  assert.equal(list.kind, 'memory');
+  assert.equal(list.memories.length, 1);
+  assert.equal(list.memories[0].uses, 1);
+  const del = await fetch(`${baseUrl}/api/memory/${list.memories[0].id}`, { method: 'DELETE' });
+  assert.equal(del.status, 204);
+  assert.equal((await (await fetch(`${baseUrl}/api/memory`)).json()).memories.length, 0);
+  assert.equal((await fetch(`${baseUrl}/api/memory/no-existe`, { method: 'DELETE' })).status, 404);
 });
 
 test('POST /api/chat convierte un fallo del agente en un evento error sin tumbar el stream', async () => {

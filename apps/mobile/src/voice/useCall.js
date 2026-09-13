@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 
 export const CALL = {
   IDLE: 'idle',
+  CONNECTING: 'connecting',
   LISTENING: 'listening',
   THINKING: 'thinking',
   SPEAKING: 'speaking',
@@ -109,7 +110,7 @@ export function useCall({ voice, agent }) {
   useEffect(() => () => hangUp('hangup'), [hangUp]);
 
   return useMemo(
-    () => ({ state, active, transcript, reason, start, hangUp }),
+    () => ({ state, active, transcript, reason, start, hangUp, provider: 'local' }),
     [state, active, transcript, reason, start, hangUp],
   );
 }

@@ -40,7 +40,7 @@ test('el repositorio en memoria devuelve copias, no referencias a su estado', as
 test('listTransactions filtra, ordena y limita', async () => {
   const repo = createMemoryRepository();
   const all = await repo.listTransactions();
-  assert.equal(all.length, 32);
+  assert.equal(all.length, 130);
   const limited = await repo.listTransactions({ limit: 3 });
   assert.equal(limited.length, 3);
   assert.deepEqual(limited, all.slice(0, 3));

@@ -8,17 +8,22 @@
 //   listInvestments() · listExchangeRates() · listBeneficiaries() · findBeneficiary(id)
 //   listCreditProducts() · findCreditProduct(id) · listHoldings() · listWatchlist()
 //   applyTransfer({...})  → persiste una transferencia ya validada por las tools
+//   Agregados (en Tiger salen de los continuous aggregates; aquí se calculan sobre la lista):
+//   spendingByCategory({ accountId?, months? }) · monthlyCashflow({ accountId? })
+//   spendingTrend({ accountId?, category?, months? })
 
 import * as bankSeed from '../data/mockData.js';
 import * as marketSeed from '../data/marketData.js';
+import { monthWindow, movingAverage, sampleStats } from './time-series.js';
 
 const FIRST_GENERATED_TX_ID = 1042;
 const TRANSFER_CATEGORY = 'Transferencias';
 
 const clone = (value) => structuredClone(value);
 const round2 = (n) => Math.round(n * 100) / 100;
+const monthOf = (date) => date.slice(0, 7);
 
-export function createMemoryRepository({ seed = bankSeed, market = marketSeed } = {}) {
+export function createMemoryRepository({ seed = bankSeed, market = marketSeed, now = () => new Date() } = {}) {
   // Estado propio de esta instancia (clonado del seed): el seed nunca se modifica.
   let state = {
     accounts: clone(seed.accounts),
@@ -57,6 +62,86 @@ export function createMemoryRepository({ seed = bankSeed, market = marketSeed } 
       }
       const sorted = [...txs].sort((a, b) => b.date.localeCompare(a.date));
       return clone(limit ? sorted.slice(0, limit) : sorted);
+    },
+
+    // Los tres agregados replican, en JavaScript, lo que en Tiger resuelven los
+    // continuous aggregates `spending_by_category_monthly` y `monthly_cashflow`:
+    // solo cargos (amount < 0), buckets por mes calendario.
+    async spendingByCategory({ accountId, months } = {}) {
+      const window = months ? monthWindow(now(), months) : null;
+      const totals = new Map();
+      for (const t of state.transactions) {
+        if (t.amount >= 0) continue;
+        if (accountId && t.accountId !== accountId) continue;
+        if (window && (monthOf(t.date) < window.first || monthOf(t.date) > window.current)) continue;
+        const entry = totals.get(t.category) ?? { category: t.category, total: 0, movements: 0 };
+        entry.total += -t.amount;
+        entry.movements += 1;
+        totals.set(t.category, entry);
+      }
+      return [...totals.values()]
+        .map((c) => ({ ...c, total: round2(c.total) }))
+        .sort((a, b) => b.total - a.total || a.category.localeCompare(b.category));
+    },
+
+    async monthlyCashflow({ accountId } = {}) {
+      const byMonth = new Map();
+      for (const t of state.transactions) {
+        if (accountId && t.accountId !== accountId) continue;
+        const month = monthOf(t.date);
+        const entry = byMonth.get(month) ?? { month, income: 0, expenses: 0, movements: 0 };
+        entry.income += t.amount > 0 ? t.amount : 0;
+        entry.expenses += t.amount < 0 ? -t.amount : 0;
+        entry.movements += 1;
+        byMonth.set(month, entry);
+      }
+      return [...byMonth.values()]
+        .map((e) => ({ ...e, income: round2(e.income), expenses: round2(e.expenses) }))
+        .sort((a, b) => a.month.localeCompare(b.month));
+    },
+
+    // Serie mensual de gasto con promedio móvil (3 meses), línea base de los
+    // meses completos anteriores al último cerrado y detalle por categoría.
+    // El mismo contrato que `tiger.spendingTrend`, que lo resuelve con
+    // time_bucket_gapfill y stats_agg de TimescaleDB Toolkit.
+    async spendingTrend({ accountId, category, months = 6 } = {}) {
+      const window = monthWindow(now(), months);
+      const wanted = category ? category.toLowerCase() : null;
+      const perMonth = new Map(window.months.map((m) => [m, { month: m, spent: 0, movements: 0 }]));
+      const perCategory = new Map();
+      for (const t of state.transactions) {
+        if (t.amount >= 0) continue;
+        if (accountId && t.accountId !== accountId) continue;
+        if (wanted && t.category.toLowerCase() !== wanted) continue;
+        const month = monthOf(t.date);
+        const bucket = perMonth.get(month);
+        if (!bucket) continue;
+        bucket.spent += -t.amount;
+        bucket.movements += 1;
+        const cat = perCategory.get(t.category) ?? { category: t.category, lastMonth: 0, baselineTotal: 0 };
+        if (month === window.lastComplete) cat.lastMonth += -t.amount;
+        else if (month < window.lastComplete) cat.baselineTotal += -t.amount;
+        perCategory.set(t.category, cat);
+      }
+      const spent = window.months.map((m) => perMonth.get(m).spent);
+      const moving = movingAverage(spent, 3);
+      const series = window.months.map((m, i) => ({
+        month: m,
+        spent: round2(perMonth.get(m).spent),
+        movements: perMonth.get(m).movements,
+        movingAvg: round2(moving[i]),
+      }));
+      const baselineValues = series.filter((s) => s.month < window.lastComplete).map((s) => s.spent);
+      const stats = sampleStats(baselineValues);
+      const baselineMonths = Math.max(baselineValues.length, 1);
+      const categories = [...perCategory.values()]
+        .map((c) => ({ category: c.category, lastMonth: round2(c.lastMonth), baselineAvg: round2(c.baselineTotal / baselineMonths) }))
+        .sort((a, b) => b.lastMonth - a.lastMonth || a.category.localeCompare(b.category));
+      return {
+        series,
+        baseline: { months: baselineValues.length, average: round2(stats.average), stddev: round2(stats.stddev) },
+        categories,
+      };
     },
 
     async listInvestments() {

@@ -100,6 +100,8 @@
     'agent.formSent': 'Formulario enviado: {payload}',
     'agent.action': 'Acción: {name}',
     'agent.building': 'Construyendo tu pantalla…',
+    'agent.recalling': 'Recordando lo que sé de ti ({n})…',
+    'agent.remembered': 'Norte recordará: {fact}',
 
     'overlay.close': 'Cerrar',
     'error.history': 'No se pudo cargar el historial.',
