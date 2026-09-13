@@ -1,12 +1,14 @@
-// Arranque de la web: monta los módulos, carga el historial desde Tiger Data y
-// conecta la barra superior y los atajos de teclado.
+// Arranque del asistente: monta los módulos, carga el historial desde Tiger Data
+// y conecta la barra superior y los atajos de teclado.
+//
+// La página es privada: sin sesión se va al login antes de montar nada, igual
+// que la portada.
 (function () {
   const $ = (id) => document.getElementById(id);
 
   async function loadCustomer() {
     try {
-      const body = await fetch('/api/customer').then((r) => r.json());
-      const customer = body?.data;
+      const { data: customer } = await window.API.fetchCustomer();
       if (!customer?.name) throw new Error('sin perfil');
       $('customerName').textContent = customer.name;
     } catch {
@@ -29,10 +31,12 @@
     const { t } = window.I18N;
     $('locationBtn').addEventListener('click', () => window.UI.toast(t('top.location.toast')));
     $('contactBtn').addEventListener('click', () => window.UI.toast(t('top.contact.toast')));
+    // Salir cierra la sesión de verdad: el micrófono se calla primero para que
+    // no siga grabando mientras cambia la página.
     $('exitBtn').addEventListener('click', () => {
       window.Voice?.stop();
       window.Voice?.silence();
-      window.UI.toast(t('exit.confirm'));
+      window.Session.signOut();
     });
   }
 
@@ -279,7 +283,8 @@
 
       let agentId = '';
       try {
-        const r = await fetch('/api/voice/convai-token');
+        // Con la sesión: si AUTH_REQUIRED está activo, la ruta pide token como el resto.
+        const r = await fetch('/api/voice/convai-token', { headers: window.Session?.headers() ?? {} });
         const text = await r.text();
         let d;
         try { d = JSON.parse(text); } catch {
@@ -423,6 +428,8 @@
   }
 
   async function boot() {
+    if (!window.Session.requireSession()) return;
+
     window.ICONS.fill();
     window.I18N.apply();
     window.UI.init();

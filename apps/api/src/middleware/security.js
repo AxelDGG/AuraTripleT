@@ -5,7 +5,9 @@
 export function corsForClients(req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  // Authorization viaja en toda petición con sesión: sin él en esta lista el
+  // preflight de la app móvil y del widget falla antes de salir.
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;

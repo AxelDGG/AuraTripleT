@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/suggest.css" />
   <link rel="stylesheet" href="css/rail.css" />
   <link rel="stylesheet" href="css/generated.css" />
+  <link rel="stylesheet" href="css/a2ui.css" />
   <script src="vendor/chart.umd.min.js"></script>
 </head>
 <body>
@@ -26,6 +27,7 @@
         <img class="brand-mark" src="img/Banorte_White.png" alt="Banorte" width="126" height="70" />
       </div>
       <nav class="topbar-nav" aria-label="Accesos">
+        <a class="top-link" href="/inicio"><i data-icon="chevronLeft"></i><span data-i18n="portal.assistant.back">BANCA EN LÍNEA</span></a>
         <button type="button" class="top-link" id="locationBtn"><i data-icon="location"></i><span data-i18n="top.location">UBICACIÓN</span></button>
         <button type="button" class="top-link" id="contactBtn"><img class="top-img" src="img/Phone_White.png" alt="" width="83" height="83" /><span data-i18n="top.contact">CONTACTO</span></button>
         <button type="button" class="top-exit" id="exitBtn"><i data-icon="logout"></i><span data-i18n="top.exit">SALIR</span></button>
@@ -137,10 +139,13 @@
   <div class="toast-root" id="toastRoot" aria-live="polite"></div>
 
   <script src="js/charts.js"></script>
+  <!-- Runtime Norte A2UI: módulo ES que importa el núcleo compartido desde /a2ui/ -->
+  <script type="module" src="js/a2ui-web.js"></script>
   <script src="renderer.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/session.js"></script>
   <script src="js/api.js"></script>
   <script src="js/voice.js"></script>
   <script src="js/history.js"></script>

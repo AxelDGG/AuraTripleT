@@ -1,0 +1,159 @@
+/* ===== Norte A2UI v2 · componentes que no existían en v1 =====
+   Layout (Stack, Row, Grid, Section, Tabs), controles ligados al dataModel
+   (Slider, ChoiceChips, Toggle), botones de acción y el esqueleto que se pinta
+   mientras el agente trabaja. Lo que ya existía (kpi, acct, card, tx, alert…)
+   sigue en generated.css con los mismos nombres de clase. */
+
+/* ---------- layout ---------- */
+.a2-stack { display: flex; flex-direction: column; }
+.a2-stack.gap-sm { gap: 8px; }
+.a2-stack.gap-md { gap: 12px; }
+.a2-stack.gap-lg { gap: 20px; }
+/* Dentro de un contenedor A2UI el espaciado lo pone el contenedor. */
+.a2-stack > .gen + .gen, .a2-row > .gen + .gen, .a2-grid > .gen + .gen, .a2-tabpanel > .gen + .gen { margin-top: 0; }
+
+.a2-row { display: flex; gap: 12px; align-items: stretch; }
+.a2-row.wrap { flex-wrap: wrap; }
+.a2-row.center { align-items: center; }
+.a2-row > * { flex: 1 1 220px; min-width: 0; }
+.a2-row > .a2-btn { flex: 0 0 auto; }
+
+/* Las columnas pedidas son un tope: si no caben (una gráfica necesita ~280px
+   para leerse), la rejilla baja de columnas sola en vez de aplastar el contenido. */
+.a2-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(150px, calc(100% / var(--cols, 2) - 10px)), 1fr)); gap: 10px; }
+.a2-grid:has(> .c-chart) { grid-template-columns: repeat(auto-fit, minmax(max(280px, calc(100% / var(--cols, 2) - 10px)), 1fr)); }
+/* Una gráfica dentro de una rejilla o fila se dibuja más baja que a todo lo ancho. */
+.a2-grid > .c-chart .chart-wrap, .a2-row > .c-chart .chart-wrap { height: 220px; }
+
+.a2-section { display: flex; flex-direction: column; gap: 12px; }
+.a2-section-head h2 { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; }
+.a2-section-head p { margin-top: 3px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+.a2-card > h3 { font-size: 14px; font-weight: 800; margin-bottom: 12px; }
+
+.a2-divider { border: 0; border-top: 1px solid var(--line-2); margin: 4px 0; }
+
+.a2-list { display: flex; flex-direction: column; gap: 8px; }
+.a2-list > h3 { font-size: 14px; font-weight: 800; }
+.a2-empty { font-size: 12.5px; color: var(--muted); }
+
+.a2-hidden, .a2-pending { display: none; }
+
+/* ---------- tabs ---------- */
+.a2-tabs { display: flex; flex-direction: column; gap: 12px; }
+.a2-tablist { display: flex; gap: 6px; padding: 4px; border-radius: var(--r-pill); background: var(--surface-3); width: fit-content; max-width: 100%; overflow-x: auto; }
+.a2-tab {
+  padding: 7px 16px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.a2-tab:hover { color: var(--ink); }
+.a2-tab.is-active { background: var(--surface); color: var(--red); box-shadow: var(--shadow-sm); }
+
+/* ---------- controles ---------- */
+.a2-control { display: flex; flex-direction: column; gap: 8px; }
+.a2-control-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.a2-control-head label, .a2-control-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.a2-readout { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--red); font-variant-numeric: tabular-nums; }
+.a2-scale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted-2); font-weight: 600; }
+
+.a2-slider input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  margin: 6px 0;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--red-tint-2), var(--surface-3));
+  outline: none;
+  cursor: pointer;
+}
+.a2-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 3px solid #fff;
+  box-shadow: var(--shadow-red);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.a2-slider input[type='range']::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.a2-slider input[type='range']::-moz-range-thumb {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--red);
+  border: 3px solid #fff;
+  box-shadow: var(--shadow-red);
+}
+
+.a2-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.a2-chip {
+  padding: 8px 16px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--line-2);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+  transition: all var(--dur-fast);
+}
+.a2-chip:hover { border-color: var(--red); color: var(--red); }
+.a2-chip.is-active { background: var(--red); border-color: var(--red); color: #fff; box-shadow: var(--shadow-red); }
+
+.a2-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.a2-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.a2-toggle-track { position: relative; width: 40px; height: 22px; border-radius: var(--r-pill); background: var(--surface-3); transition: background var(--dur-fast); }
+.a2-toggle-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform var(--dur-fast) var(--ease-spring); }
+.a2-toggle input:checked + .a2-toggle-track { background: var(--red); }
+.a2-toggle input:checked + .a2-toggle-track::after { transform: translateX(18px); }
+.a2-toggle input:focus-visible + .a2-toggle-track { outline: 2px solid var(--red); outline-offset: 2px; }
+
+/* ---------- botones ---------- */
+.a2-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 24px;
+  border-radius: var(--r-pill);
+  font-size: 13.5px;
+  font-weight: 700;
+  align-self: flex-start;
+  transition: transform var(--dur-fast) var(--ease-spring), opacity var(--dur-fast), background var(--dur-fast);
+}
+.a2-btn.primary { background: linear-gradient(140deg, var(--red) 0%, var(--red-600) 100%); color: #fff; box-shadow: var(--shadow-red); }
+.a2-btn.secondary { background: var(--surface); color: var(--red); border: 1.5px solid var(--red); }
+.a2-btn.ghost { background: transparent; color: var(--ink-2); }
+.a2-btn.danger { background: var(--red-700); color: #fff; }
+.a2-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.a2-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.a2-btn.is-armed { background: var(--ink); box-shadow: none; }
+.a2-btn.is-sent::after { content: ' ✓'; }
+.a2-btn-icon { font-size: 15px; }
+
+/* ---------- esqueleto ---------- */
+.a2-skeleton { display: grid; gap: 10px; }
+.a2-skeleton .skeleton { display: block; min-height: 18px; }
+.a2-skeleton.is-header .skeleton:first-child { width: 46%; height: 24px; }
+.a2-skeleton.is-header .skeleton:last-child { width: 68%; height: 14px; }
+.a2-skeleton.is-chart .skeleton { height: 220px; border-radius: var(--r-lg); }
+.a2-skeleton.is-cards, .a2-skeleton.is-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.a2-skeleton.is-cards .skeleton { height: 120px; border-radius: var(--r-lg); }
+.a2-skeleton.is-kpis .skeleton { height: 78px; border-radius: var(--r-md); }
+.a2-skeleton.is-list .skeleton { height: 44px; }
+.a2-skeleton.is-form .skeleton { height: 40px; }
+.a2-skeleton.is-plan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.a2-skeleton.is-plan .skeleton { height: 78px; }
+.a2-skeleton.is-plan .skeleton:last-child { grid-column: 1 / -1; height: 180px; border-radius: var(--r-lg); }
+.a2-skeleton.is-text .skeleton { height: 14px; }
+.a2-skeleton.is-text .skeleton:last-child { width: 72%; }
+
+/* Estado mientras el agente procesa una acción. */
+.canvas.is-busy .a2-btn, .canvas.is-busy .f-submit { pointer-events: none; }
+.canvas-status { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.canvas-status .spinner { width: 12px; height: 12px; }

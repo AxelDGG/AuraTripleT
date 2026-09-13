@@ -44,6 +44,9 @@ export const accounts = [
     creditLimit: 85000.0,
     balance: -23410.5,
     availableCredit: 61589.5,
+    // Tasa anual ordinaria de la tarjeta: es contra lo que se compara el plan
+    // de reestructura (get_card_restructure_options).
+    interestRate: 45.9,
     paymentDue: '2026-09-15',
     minimumPayment: 1870.0,
     noInterestPayment: 23410.5,

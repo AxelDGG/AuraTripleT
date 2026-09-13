@@ -89,7 +89,12 @@ test('GET /api/history devuelve las entradas y el conteo de las cinco carpetas',
   assert.deepEqual(body.folders.map((f) => f.id), ['transacciones', 'promociones', 'movimientos', 'gastos', 'otros']);
   assert.deepEqual(body.folders.map((f) => f.total), [1, 0, 0, 1, 0]);
   assert.deepEqual(body.entries.map((e) => e.title), ['Transferencia a Juan', 'Gastos de agosto']);
-  assert.deepEqual(body.entries[0].spec, spec('b'));
+  // Las entradas v1 se elevan a una superficie A2UI al leerse; el spec original
+  // se conserva íntegro debajo.
+  const { surface, ...legacy } = body.entries[0].spec;
+  assert.deepEqual(legacy, spec('b'));
+  assert.equal(surface.surfaceId, `hist_${body.entries[0].id}`);
+  assert.equal(surface.components[0].id, 'root');
 });
 
 test('GET /api/history filtra por carpeta y por búsqueda de título', async () => {

@@ -2,11 +2,23 @@
 //
 // Alimenta el carrusel central (últimas interfaces) y el panel derecho de
 // carpetas. Filtros opcionales: ?folder=gastos, ?search=texto, ?limit=30.
+//
+// Las entradas guardadas antes de Norte A2UI v2 solo traen `spec.ui` (v1); se
+// elevan a `spec.surface` al leerlas para que los clientes rendericen siempre
+// una superficie y no tengan que conocer dos formatos.
 
 import { Router } from 'express';
-import { FOLDERS, FOLDER_IDS } from '@norte/a2ui-schema';
+import { FOLDERS, FOLDER_IDS, surfaceFromV1 } from '@norte/a2ui-schema';
 
 const MAX_SEARCH_CHARS = 120;
+
+export function withSurface(entry) {
+  if (!entry?.spec || entry.spec.surface) return entry;
+  return {
+    ...entry,
+    spec: { ...entry.spec, surface: surfaceFromV1(entry.spec.ui, { surfaceId: `hist_${entry.id}` }) },
+  };
+}
 
 export function createHistoryRouter({ historyStore }) {
   const router = Router();
@@ -31,7 +43,7 @@ export function createHistoryRouter({ historyStore }) {
       res.json({
         source: historyStore.kind,
         folders: FOLDERS.map((f) => ({ id: f.id, label: f.label, total: counts[f.id] ?? 0 })),
-        entries,
+        entries: entries.map(withSurface),
       });
     } catch (err) {
       next(err);

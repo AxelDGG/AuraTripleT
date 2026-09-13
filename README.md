@@ -14,7 +14,7 @@ Snowflake, Tiger Data y Vultr.
 | [2. El reto Banorte](#2-el-reto-banorte) | Lo que evalúan y lo que no es negociable |
 | [3. Territorio y flujos](#3-territorio-y-flujos-objetivo) | El problema concreto que resolvemos |
 | [4. Arquitectura](#4-arquitectura) | Cómo se conectan las piezas |
-| [5. Norte UI Spec](#5-protocolo-a2ui-norte-ui-spec-v1) | Nuestro protocolo A2UI |
+| [5. Norte A2UI v2](#5-protocolo-a2ui-norte-a2ui-v2) | Nuestro perfil del protocolo A2UI |
 | [6. Retos MLH](#6-retos-mlh) | Qué rol tiene cada tecnología |
 | [7. Mobile y widget](#7-mobile-react-native-y-widget-android) | La app y el acceso directo en Android |
 | [8. Estructura del repo](#8-estructura-del-repositorio) | Dónde va cada cosa |
@@ -54,7 +54,7 @@ Los tres pasos que repite cada interacción:
 |---|---|---|
 | **LLM** | Un modelo al centro: interpreta, decide y orquesta | `apps/api/src/agent.js` |
 | **MCP** | Model Context Protocol para exponer al modelo datos, herramientas y acciones propias | `packages/mcp-server/` |
-| **A2UI** | Agent-to-UI o un protocolo equivalente para transmitir la interfaz que genera el agente | Norte UI Spec (sección 5): `packages/a2ui-schema` + `apps/web/public/renderer.js` |
+| **A2UI** | Agent-to-UI o un protocolo equivalente para transmitir la interfaz que genera el agente | Norte A2UI v2 (sección 5): `packages/a2ui-schema` + `apps/web/public/js/a2ui-web.js` + `apps/mobile/src/a2ui` |
 
 ### Cuatro reglas que aplican a todos los equipos
 
@@ -108,7 +108,7 @@ flujo 2 ya funciona en la base.
 
 | # | Intención de la persona | UI que genera el agente | Acción real que ocurre | Estado |
 |---|---|---|---|---|
-| 1 | "¿En qué se me va el dinero?" / "Quiero gastar menos" | Gráfica de gastos por categoría + insight de Gemini + formulario para crear una meta o presupuesto | Se persiste la meta y la UI se reconfigura con una barra de progreso | Propuesto |
+| 1 | "Quiero pagar menos intereses de mi tarjeta" | Plan de reestructura: KPIs derivados, slider de plazo (recalcula sin LLM), gráfica de amortización y botón "Aplicar plan" | `restructure_card_debt` aplica el plan y la tarjeta queda con la nueva mensualidad | **Funciona** |
 | 2 | "Mándale $500 a Ana" | Formulario de transferencia prellenado con cuentas y beneficiarios reales | `transfer_funds` ejecuta la SPEI simulada, muestra folio y saldos nuevos | **Funciona** |
 | 3 | "Concilia este ticket" (con foto) | Gemini extrae comercio, fecha y monto; UI de match contra movimientos o registro de gasto en efectivo | El movimiento queda conciliado o registrado | Propuesto |
 
@@ -122,7 +122,7 @@ flujo 2 ya funciona en la base.
 │ Web        │      │ @norte/api    │      │ Groq                │      │ @norte/mcp-server    │
 │ Mobile RN  │─────►│ Express       │─────►│ orquesta: intención │─────►│ 14 tools (zod)       │
 │ Widget     │ SSE  │ /api/chat     │      │ → tools → UI JSON   │ MCP  │ hoy: mock en memoria │
-│ Android    │◄─────│ /api/voice/*  │      │ Gemini              │stdio │ meta: Tiger Data     │
+│ Android    │◄─────│ /api/auth/*   │      │ Gemini              │stdio │ meta: Tiger Data     │
 └────────────┘      └───────┬───────┘      │ analiza: insights,  │      │       + Snowflake    │
       ▲                     │              │ recibos, coach      │      └──────────────────────┘
       │                     ▼              └─────────────────────┘
@@ -156,52 +156,59 @@ Detalle técnico de la base (endpoints, eventos SSE, herramientas, notas de resi
 
 ---
 
-## 5. Protocolo A2UI: Norte UI Spec v1
+## 5. Protocolo A2UI: Norte A2UI v2
 
-El reto pide A2UI "o un protocolo equivalente". Norte UI Spec es el nuestro: un JSON declarativo que
-el agente emite y que cualquier cliente (web hoy, mobile después) renderiza con sus propios componentes.
+El reto pide A2UI "o un protocolo equivalente". Norte A2UI v2 es nuestro perfil del protocolo abierto
+[A2UI v1.0](https://a2ui.org/specification/v1.0-a2ui/) con un catálogo de componentes propio: el
+agente describe la interfaz como una superficie (componentes + modelo de datos) que viaja por partes,
+los controles escriben en ese modelo y lo derivado se recalcula en el cliente sin volver al LLM, y lo
+que la persona toca regresa al agente como un evento tipado. Detalle completo en
+[`docs/A2UI.md`](docs/A2UI.md); tradeoffs en [`docs/DECISIONES.md`](docs/DECISIONES.md).
 
 ```json
-{
-  "message": "Resumen breve para la persona (1-3 frases)",
-  "ui": [
-    { "type": "header", "title": "Tus gastos de septiembre", "badge": "Análisis" },
-    { "type": "kpi_grid", "items": [{ "label": "Total", "value": "$18,400", "trend": "up" }] },
-    { "type": "chart", "chartType": "doughnut", "labels": ["Comida", "Transporte"], "datasets": [{ "data": [6200, 3100] }] },
-    { "type": "form", "action": "create_goal", "submitLabel": "Crear meta", "fields": [{ "name": "amount", "inputType": "number" }] }
-  ]
-}
+{"version":"v1.0","createSurface":{"surfaceId":"s_01","catalogId":"urn:norte:a2ui:catalog:banorte:v2",
+  "dataModel":{"plan":{"balance":23410.5,"annualRate":26.9,"months":12}},
+  "components":[
+    {"id":"root","component":"Stack","children":["h","grid","plazo","aplicar"]},
+    {"id":"h","component":"Header","title":"Reestructura tu saldo"},
+    {"id":"grid","component":"Grid","columns":2,"children":["pago"]},
+    {"id":"pago","component":"Kpi","label":"Pago mensual","value":{"call":"currency","args":{"v":{"call":"amortize","args":{"amount":{"path":"/plan/balance"},"months":{"path":"/plan/months"},"annualRate":{"path":"/plan/annualRate"}}}}}},
+    {"id":"plazo","component":"Slider","label":"Plazo","value":{"path":"/plan/months"},"min":6,"max":36,"step":6,"unit":"meses"},
+    {"id":"aplicar","component":"Button","label":"Aplicar plan","action":{"event":{"name":"confirm_restructure","context":{"months":{"path":"/plan/months"}}}}}
+  ]}}
 ```
 
-| Tipo | Para qué lo usa el agente |
-|---|---|
-| `header` | Encabezado de la vista generada, con badge de contexto |
-| `kpi_grid` | 2 a 4 métricas clave con tendencia |
-| `balance_cards` | Tarjetas de cuentas (débito, ahorro, crédito) |
-| `chart` | Barras, líneas, pie o dona a partir de datos reales de las tools |
-| `table` | Datos tabulares |
-| `transaction_list` | Movimientos con fecha, categoría y monto |
-| `form` | **El componente accionable**: campos con opciones reales, `action` que el agente ejecuta al enviarse |
-| `alert` | Confirmaciones, avisos y errores |
-| `progress` | Uso de crédito, avance de metas |
-| `text` | Texto breve con negritas y código |
+| Capa | Componentes | Para qué |
+|---|---|---|
+| Layout | `Stack` `Row` `Grid` `Card` `Section` `Tabs` `Divider` `List` | El agente acomoda la pantalla según la intención |
+| Dominio | `Header` `Kpi` `AccountCard` `Chart` (16 tipos) `Table` `TransactionList` `Alert` `Progress` `Text` | Las piezas bancarias propias |
+| Controles | `Slider` `Select` `ChoiceChips` `TextField` `Toggle` | Ligados al `dataModel`: recalculan sin LLM |
+| Acciones | `Button` `Form` | Cierran el ciclo con un evento tipado |
 
-Reglas del protocolo:
+Lo que el protocolo hace por el producto:
 
-- **Un solo contrato.** Vive en `packages/a2ui-schema` (catálogo + esquemas zod). El `SYSTEM_PROMPT` del
-  agente se genera desde el catálogo y la API normaliza cada respuesta del modelo con los esquemas antes
-  de emitirla, así web y mobile renderizan siempre la misma forma canónica.
-- **Los componentes son nuestros.** El rediseño de UI cambia la piel (tokens, layout, animaciones), no
-  los tipos ni sus campos.
-- **Renderizado seguro por construcción.** Solo `createElement` y `textContent`; enums (tipo de gráfica,
-  nivel de alerta, tipo de cuenta) se validan contra listas cerradas.
-- **Tolerante al modelo.** El contrato acepta variantes razonables del LLM (`fields` o `inputs`, `type` o
-  `inputType`, opciones como objeto o string, enums fuera de catálogo) y las lleva a la forma canónica en
-  la API, para no romper la demo por un detalle del modelo.
+- **La pantalla se arma en vivo.** Con el primer tool call sale un esqueleto (`createSurface`); la
+  interfaz final llega en chunks (`updateComponents`) de la raíz hacia abajo.
+- **Cero latencia en lo interactivo.** Un `Slider` de plazo mueve los `Kpi` y la gráfica de
+  amortización en el mismo frame: los valores viven en el `dataModel` y lo derivado se describe con
+  `{"call":"amortize", ...}`, funciones puras de una tabla cerrada.
+- **La misma pantalla se reconfigura.** "¿Y a 6 meses?" no reconstruye nada: el agente responde con
+  un patch (`updateDataModel`) sobre la superficie activa, que viaja en cada petición.
+- **Las acciones son eventos, no texto.** `POST /api/action` recibe `{surfaceId, event, dataModel}`;
+  `transfer_funds` y `restructure_card_debt` solo se ejecutan si el evento está en la lista y su
+  contexto valida con zod (`apps/api/src/actions.js`). El modelo sigue sin poder autorizar dinero.
+- **Un runtime, tres consumidores.** `packages/a2ui-schema/src/core` no tiene dependencias: lo usa la
+  API, se sirve tal cual a la web (`/a2ui/*.js`) y se copia a la app móvil (`npm run sync:a2ui`, con
+  un test que falla si difiere).
+- **Negociación de catálogo.** Cada cliente anuncia qué componentes sabe pintar y el prompt se
+  restringe a eso (`GET /api/a2ui/catalog` publica el catálogo).
+- **Compatibilidad.** El historial v1 se eleva a superficie al leerse y cada superficie lleva su
+  proyección v1; el canal viejo `[form:transfer_funds] …` sigue aceptado.
 
-Tradeoff registrado: usar el protocolo A2UI de Google daría puntos de "estándar", pero el JSON propio ya
-funciona, es más simple de renderizar en dos plataformas y es seguro por diseño. Si sobra tiempo se
-alinean nombres de campos con A2UI.
+Tradeoff registrado: el modelo escribe JSON anidado y el servidor lo aplana a la lista de adyacencia de
+A2UI, porque los LLM generan grafos con ids mucho peor que árboles. Y el presupuesto de tokens del
+orquestador (Groq on-demand: 8 000 por minuto) obligó a un prompt compacto (~2 800 tokens) y a resumir
+el modelo de datos que se le devuelve; ver DECISIONES.
 
 ---
 
@@ -212,7 +219,7 @@ Regla: **cada proveedor externo tiene fallback** para que la demo nunca dependa 
 
 | Reto | Qué pide | Cómo lo usa Norte AI | Mínimo viable para la demo |
 |---|---|---|---|
-| **Gemini API** | Una app de IA que entienda lenguaje, analice datos y use la API con creatividad | **Gemini es el analista.** (a) Tool MCP `analyze_finances`: hasta 12 meses de movimientos a Gemini Flash con salida estructurada → gastos hormiga, suscripciones, anomalías y metas sugeridas. (b) Tool `parse_receipt`: foto de ticket o comprobante → `{comercio, fecha, monto, categoría}` para conciliación (multimodal). (c) Coach de educación financiera que explica CAT, intereses o SPEI con los datos de la persona. (d) Fallback de orquestación: `LLM_PROVIDER=gemini` usa function calling nativo con el mismo esquema de tools (se registra en `apps/api/src/providers/`). | (a) y (b) visibles en el guion de la demo |
+| **Gemini API** | Una app de IA que entienda lenguaje, analice datos y use la API con creatividad | **Gemini es el analista.** (a) Tool MCP `analyze_finances`: hasta 12 meses de movimientos a Gemini Flash con salida estructurada → gastos hormiga, suscripciones, anomalías y metas sugeridas. (b) Tool `parse_receipt`: foto de ticket o comprobante → `{comercio, fecha, monto, categoría}` para conciliación (multimodal). (c) Coach de educación financiera que explica CAT, intereses o SPEI con los datos de la persona. (d) **Hecho:** orquestación alterna con `LLM_PROVIDER=gemini` (function calling nativo, mismo esquema de tools, `apps/api/src/providers/gemini.js`). | (a) y (b) visibles en el guion de la demo |
 | **ElevenLabs** | Agentes que hablan | **STT + TTS, el LLM sigue siendo el cerebro.** Speech-to-Text para el micrófono (web y mobile) y Text-to-Speech con la voz "Norte" en español mexicano, con streaming, para leer el `message`. Endpoints propios `POST /api/voice/transcribe` y `POST /api/voice/speak`: la key nunca llega al cliente. Fallback: Web Speech API (`apps/web/public/js/voice.js`). | TTS en web y mobile, STT en mobile |
 | **Tiger Data** | App rápida y escalable con SQL | **Base operacional — integrado.** Postgres 18 + TimescaleDB 2.30 en Tiger Cloud. Dos hypertables: `transactions` (movimientos, chunks de 30 días) y `ui_history` (cada interfaz que genera el agente, con la carpeta que él mismo eligió, chunks de 7 días e índice trigram sobre el título para el buscador). Continuous aggregate `spending_by_category_monthly` con refresh policy. Las tools MCP leen vía repositorios (`memory` \| `tiger`, se elige con `BANK_DATA_SOURCE`); la transferencia es atómica con la condición de saldo dentro del `UPDATE`. Carga con `npm run db:setup`, paridad contra la base real con `npm run db:verify`. Local: contenedor TimescaleDB en `infra/docker-compose.yml`. | Cuentas, movimientos, gastos e historial de visualizaciones leyendo y escribiendo en Tiger |
 | **Snowflake** | Uso de Snowflake para APIs y LLMs | **Capa analítica.** Dataset sintético poblacional (miles de clientes, 24 meses) para **benchmarks de pares** ("gastas 30% más que personas como tú en restaurantes") y Cortex AI: `AI_CLASSIFY` para categorizar, `AI_AGG` / `AI_COMPLETE` para resúmenes, Cortex Analyst para preguntas en lenguaje natural. Expuesto como tool MCP `get_peer_benchmark` vía SQL REST API o `snowflake-sdk`. | Una consulta Cortex visible dentro de la UI generada |
@@ -227,15 +234,90 @@ ese reto no las verá.
 
 ## 7. Mobile (React Native) y widget Android
 
-- **Stack:** Expo con dev build (no Expo Go), porque el widget necesita código nativo. Librería
-  `react-native-android-widget` (config plugin de Expo); verificar versión al implementar.
-- **Widget "Norte AI":** dos accesos directos en la pantalla de inicio.
-  - 🎤 **Hablar** → abre la app en `norteai://chat?mode=voice` y arranca la grabación con ElevenLabs STT.
-  - ⌨️ **Escribir** → abre la app en `norteai://chat?mode=text` con el teclado listo.
-  - Opcional: mostrar saldo disponible en el widget.
-- **Misma API, mismo protocolo.** La app consume `/api/dashboard`, `/api/chat` (SSE) y `/api/voice/*`,
-  y renderiza Norte UI Spec con componentes nativos.
-- **Referencias visuales:** pendientes de compartir; el diseño de la UI es un track aparte.
+App **Expo SDK 57 con dev build** (no Expo Go: el widget necesita código nativo). Consume los mismos
+endpoints de `@norte/api` y renderiza el mismo **Norte UI Spec v1** con componentes nativos propios.
+Detalle completo en [`apps/mobile/README.md`](apps/mobile/README.md).
+
+### Lo que ya funciona
+
+| Pieza | Estado |
+|---|---|
+| Login con usuario y contraseña contra `POST /api/auth/login` | ✅ |
+| Desbloqueo con **huella o Face ID** según lo que ofrezca el dispositivo | ✅ |
+| Pestañas **Chat · Historial · Categorías** y barra inferior de 5 accesos | ✅ |
+| Renderer nativo de los 10 componentes y las 16 gráficas del contrato | ✅ |
+| Streaming SSE del agente (se ve pensar, llamar herramientas y construir) | ✅ |
+| Voz: dictado con ElevenLabs STT y respuesta hablada con TTS | ✅ |
+| Cuentas, Transferencias, Inversiones y Servicios sobre `/api/dashboard` | ✅ |
+| **Widget Android** con Abrir app · Voz por deep link | ✅ |
+
+### Sesión y biometría
+
+```
+  primera vez                      siguientes
+┌──────────────┐                 ┌──────────────┐
+│ usuario +    │                 │ huella o     │
+│ contraseña   │                 │ Face ID      │
+└──────┬───────┘                 └──────┬───────┘
+       │ POST /api/auth/login            │ el sistema aprueba
+       ▼                                 ▼
+  token firmado ──► expo-secure-store ──► GET /api/auth/session ──► adentro
+```
+
+**La biometría nunca viaja al servidor.** El sistema operativo responde sí o no y, solo con un sí, la
+app lee el token que ya tenía en el llavero (Keychain / EncryptedSharedPreferences). Es lo que hace la
+banca real y evita inventar un protocolo biométrico propio, que sería lo más fácil de romper.
+
+El token es un JSON firmado con HMAC-SHA256 (`apps/api/src/auth/tokens.js`), sin dependencias. Los
+usuarios son sintéticos, con la contraseña verificada por scrypt y comparación en tiempo constante
+(`apps/api/src/auth/users.js`): **regina**, **carlos** y **maria**, todos con `Banorte2026`.
+
+> El `preferredName` de la sesión es con el que saluda la app ("Hola Regina"); el perfil bancario
+> sigue viniendo de la herramienta MCP `get_customer_profile`, que es la única fuente de verdad de los
+> datos. Hoy los tres usuarios comparten el cliente sintético `CLT-889201`.
+
+La web usa las mismas credenciales y el mismo `POST /api/auth/login` (con `channel: 'web'`). Donde el
+teléfono guarda el token en el llavero del sistema, el navegador lo guarda en `localStorage`: no tiene
+llavero, y la CSP (`script-src 'self'`) es lo que impide que un script ajeno lo lea. `attachSession`
+sigue siendo permisivo para que `GET /api/health` y el propio login respondan sin token; con
+`AUTH_REQUIRED=true` se endurece toda la API el día de la demo.
+
+### La web, pantalla por pantalla
+
+| Ruta | Pantalla | Sesión |
+|---|---|---|
+| `/login` | Acceso: usuario, contraseña y el mismo endpoint que la app móvil | pública |
+| `/` · `/inicio` | Portada de banca en línea: saldo, accesos rápidos, movimientos, alertas y favoritos | requerida |
+| `/asistente` | El agente: sugerencias, lienzo generativo e historial | requerida |
+
+Las dos privadas se guardan solas: sin token redirigen a `/login?next=…` y vuelven a donde ibas al
+entrar. Un `401` de la API se maneja en un único lugar (`js/api.js`), que borra la sesión y manda al
+login sin que cada pantalla tenga que acordarse.
+
+La portada se arma con **`GET /api/overview`** (cuentas, movimientos, frecuentes y las alertas que se
+derivan de ellos) — tres herramientas MCP, no las doce de `/api/dashboard`: entrar a la banca en línea
+no puede costar un dashboard completo. El acceso al asistente es la primera tarjeta de los accesos
+rápidos, en rojo y marcada como nueva: es la puerta a la parte generativa del producto, no un trámite
+más de la lista.
+
+### Widget "Norte AI"
+
+| Botón | Deep link | Qué pasa |
+|---|---|---|
+| ⌨️ **Abrir app** | `norteai://chat?mode=text` | Entra al chat con el teclado listo |
+| 🎤 **Voz** | `norteai://chat?mode=voice` | Entra al chat **grabando**, y el agente responde hablando |
+
+El widget no habla con la API ni guarda estado: solo abre deep links, así que no puede quedar
+desincronizado. Lo único que lee es el nombre de la sesión para saludar. Si la app estaba bloqueada,
+la intención no se pierde: se vuelve a leer el link después del desbloqueo.
+
+### Dos decisiones que vale la pena defender
+
+- **SSE por XMLHttpRequest.** `fetch` en React Native no expone `response.body`, así que la interfaz
+  generada aparecería de golpe al final y perderíamos justo lo que el reto premia. XHR sí entrega
+  `responseText` parcial (`apps/mobile/src/api/sse.js`).
+- **La pantalla de Transferencias no transfiere.** Prepara la intención y se la pasa al agente, que
+  genera el formulario y ejecuta `transfer_funds`. La regla de seguridad no tiene un atajo por móvil.
 
 ---
 
@@ -254,19 +336,31 @@ AuraTripleT/
 │   ├── api/                   @norte/api · Express + agente + cliente MCP + streaming SSE
 │   │   ├── src/index.js       arranque: carga el .env de la raíz, listen, precalienta MCP
 │   │   ├── src/app.js         createApp(): middleware + rutas, sin puerto (así se prueba)
-│   │   ├── src/routes/        health · dashboard · customer · credit · chat (SSE) · history
+│   │   ├── src/routes/        health · auth · dashboard · customer · overview · credit · chat (SSE) · history · voice
+│   │   ├── src/auth/          usuarios sintéticos (scrypt) + tokens firmados (HMAC)
 │   │   ├── src/middleware/    security (CORS + CSP) · rate-limit · error-handler
 │   │   ├── src/agent.js       loop de tool calling y SYSTEM_PROMPT
 │   │   ├── src/providers/     proveedores LLM intercambiables (groq hoy; gemini se registra aquí)
 │   │   ├── src/ui-spec.js     parsea y normaliza la respuesta del modelo con @norte/a2ui-schema
 │   │   ├── src/mcp-client.js  lanza @norte/mcp-server como subproceso
 │   │   ├── src/history-store.js  historial de visualizaciones en Tiger (fallback en memoria)
-│   │   └── tests/             agent · routes · history · providers · ui-spec · mcp (e2e)
+│   │   └── tests/             agent · auth · routes · history · providers · ui-spec · mcp (e2e)
 │   ├── web/                   @norte/web · UI web vanilla (la sirve @norte/api)
-│   │   └── public/            index.html · renderer.js (Norte UI Spec → DOM)
-│   │                          js/: app · agent (SSE) · history (línea de tiempo + carpetas) · suggest · ui · api · voice · i18n · icons
-│   │                          css/: tokens · shell · suggest · rail · generated
-│   └── mobile/                (placeholder) React Native + widget Android
+│   │   └── public/            login.html (/login) · inicio.html (/ y /inicio) · index.html (/asistente)
+│   │                          renderer.js (Norte UI Spec → DOM)
+│   │                          js/: session (token) · login · inicio (portada) · app · agent (SSE) ·
+│   │                               history (línea de tiempo + carpetas) · suggest · ui · api · voice · i18n · icons
+│   │                          css/: tokens · portal · auth · shell · suggest · rail · generated
+│   └── mobile/                @norte/mobile · Expo SDK 57 (dev build) + widget Android
+│       ├── app.config.js      scheme norteai · permisos · plugin del widget · extra.apiUrl
+│       ├── src/api/           client · sse (streaming por XHR) · endpoints
+│       ├── src/auth/          AuthProvider (4 estados) · biometrics (biometría + llavero)
+│       ├── src/charts/        motor de gráficas propio en SVG (los 16 tipos del catálogo)
+│       ├── src/renderer/      Norte UI Spec → nativo (gemelo de public/renderer.js)
+│       ├── src/screens/       Login · Unlock · Assistant · Cuentas · Transferencias ·
+│       │                      Inversiones · Servicios
+│       ├── src/voice/         dictado y voz del agente vía /api/voice/*
+│       └── widget/            NorteWidget + manejador de eventos de Android
 ├── packages/
 │   ├── mcp-server/            @norte/mcp-server · servidor MCP banorte-banking
 │   │   ├── src/server.js      registra las 14 herramientas con zod (stdio)
@@ -279,7 +373,8 @@ AuraTripleT/
 │   └── shared/                (placeholder) formatters, i18n, tipos
 ├── data/seeds/                esquema y seed de Tiger Data (001_schema.sql · 002_seed.sql)
 ├── scripts/                   db-setup.js (carga el esquema) · db-verify.js (paridad contra la base real)
-└── infra/                     Dockerfile + docker-compose (api + timescaledb) · deploy en Vultr pendiente
+└── infra/                     Dockerfile · docker-compose (api + timescaledb) ·
+                               docker-compose.vultr.yml + Caddyfile (HTTPS) para producción
 ```
 
 Las carpetas marcadas como placeholder existen para reservar su lugar y tienen un README con lo que
@@ -367,7 +462,8 @@ Edita `.env` y pon tu `GROQ_API_KEY`. Luego:
 npm run dev
 ```
 
-Abre `http://localhost:3040`. Para correr las pruebas de los cuatro workspaces:
+Abre `http://localhost:3040`: entra por la pantalla de acceso con **regina**, **carlos** o **maria** y
+la contraseña `Banorte2026`. Para correr las pruebas de los cuatro workspaces:
 
 ```bash
 npm test
@@ -383,14 +479,17 @@ MCP por stdio, útil para inspectores MCP). Con Docker: `docker compose -f infra
 |---|---|---|
 | `GROQ_API_KEY`, `GROQ_MODEL` | Hoy | Orquestador (`openai/gpt-oss-120b`) |
 | `PORT` | Hoy | Puerto de la API (3040) |
-| `LLM_PROVIDER` | Hoy (opcional) | `groq` (default); `gemini` cuando se registre el proveedor |
+| `LLM_PROVIDER` | Hoy (opcional) | `groq` (default, el más rápido) o `gemini` (tier gratis por requests/día: aguanta turnos encadenados) |
 | `BANK_DATA_SOURCE` | Hoy (opcional) | Fuente de datos del MCP: `memory` (default) o `tiger` |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | Objetivo | Insights, recibos, coach, fallback |
-| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Objetivo | STT y TTS |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | Hoy | Orquestador alterno (`gemini-3.6-flash`); insights, recibos y coach siguen como objetivo |
+| `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | Hoy (opcional) | STT y TTS. Sin ellas la web cae a Web Speech del navegador. El voice ID debe ser una voz `premade`: las de librería piden plan de pago |
 | `DATABASE_URL` | Hoy (opcional) | Tiger Data (TimescaleDB). Sin ella el MCP usa los seeds en memoria y el historial no persiste |
 | `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_PASSWORD`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE` | Objetivo | Benchmarks y Cortex AI |
 | `DEMO_CUSTOMER_ID` | Hoy (opcional) | Cliente al que se le atribuye el historial (default `CLT-889201`) |
-| `PUBLIC_API_URL` | Objetivo | URL que usan la app móvil y el widget |
+| `AUTH_SECRET`, `AUTH_TOKEN_TTL_HOURS` | Hoy (opcional) | Firma de las sesiones. Sin ella se genera una por proceso y las sesiones mueren al reiniciar; con `NODE_ENV=production` es obligatoria |
+| `AUTH_REQUIRED` | Hoy (opcional) | `true` exige token en toda `/api`. Default `false` para no romper la web |
+| `PUBLIC_API_URL` | Hoy | URL que se compila en la app móvil. Se puede cambiar en caliente desde Servicios → Conexión |
+| `NORTE_DOMAIN` | Hoy (solo Vultr) | Dominio con el que Caddy pide el certificado. Sin dominio propio: `<ip-con-guiones>.sslip.io` |
 
 ---
 
@@ -398,12 +497,12 @@ MCP por stdio, útil para inspectores MCP). Con Docker: `docker compose -f infra
 
 | Fase | Qué | Hecho cuando… |
 |---|---|---|
-| 0 · Base | MCP ✅ · Conexión a API ✅ · UI web base ✅ · Monorepo + contrato + proveedores + repositorios ✅ · UI mobile ⬜ | `npm test` verde y el flujo de transferencia funciona de punta a punta |
+| 0 · Base | MCP ✅ · Conexión a API ✅ · UI web base ✅ · Monorepo + contrato + proveedores + repositorios ✅ · UI mobile ✅ | `npm test` verde y el flujo de transferencia funciona de punta a punta |
 | 1 · Wireframe UI | Wireframes de la nueva interfaz (listo mañana en la mañana) | El equipo aprueba los wireframes y el track de UI arranca sin bloquear al resto |
-| 2 · Mobile + widget | App React Native y widget Android con accesos Hablar / Escribir | Desde el widget se abre el chat y se completa una consulta |
+| 2 · Mobile + widget ✅ | App Expo (login + biometría + renderer nativo + voz) y widget Android con accesos Abrir app / Voz | Desde el widget se abre el chat y se completa una consulta |
 | 3 · Retos MLH | Gemini, ElevenLabs, Tiger Data, Snowflake y Vultr en el orden de la tabla de la sección 6 | Cada reto cumple su mínimo viable y aparece en el guion |
-| 4 · Mejoras en el output | Más variedad y calidad en la UI generada, streaming por componente | Tres intenciones distintas producen tres pantallas claramente distintas |
-| 5 · Entregables | `docs/DECISIONES.md`, guion de demo, deploy final | Demo ensayada completa en menos de 5 minutos |
+| 4 · Norte A2UI v2 ✅ | Protocolo A2UI (superficies, dataModel, bindings, eventos tipados), streaming por chunks, runtime compartido web/mobile, flujo de reestructura de tarjeta | Slider sin latencia, patch sobre la superficie activa y "Aplicar plan" ejecutando `restructure_card_debt`; `npm test` verde (167 pruebas) |
+| 5 · Entregables | `docs/A2UI.md` ✅ · `docs/DECISIONES.md` ✅ · guion de demo · deploy final | Demo ensayada completa en menos de 5 minutos |
 
 ---
 
@@ -412,7 +511,7 @@ MCP por stdio, útil para inspectores MCP). Con Docker: `docker compose -f infra
 - [ ] **Demo en vivo:** intención → UI generada → interacción → acción real.
 - [ ] **Repositorio:** componentes, servidor MCP, capa A2UI e instrucciones para correrlo (este README).
 - [ ] **APIs y datasets:** servicios y datos sintéticos creados por el equipo (`data/`, `packages/mcp-server`).
-- [ ] **Decisiones técnicas:** diagrama de arquitectura y tradeoffs de modelo, protocolo e infraestructura (`docs/DECISIONES.md`).
+- [x] **Decisiones técnicas:** diagrama de arquitectura y tradeoffs de modelo, protocolo e infraestructura (`docs/DECISIONES.md`, protocolo en `docs/A2UI.md`).
 
 Documentos relacionados: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) (base técnica) ·
 [`apps/mobile/README.md`](apps/mobile/README.md) · [`packages/a2ui-schema/README.md`](packages/a2ui-schema/README.md) ·

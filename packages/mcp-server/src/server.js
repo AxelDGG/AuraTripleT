@@ -112,6 +112,26 @@ server.tool(
 );
 
 server.tool(
+  'get_card_restructure_options',
+  'Opciones para reestructurar el saldo de la tarjeta de crédito en un plan de pagos fijos a tasa preferente: saldo, tasa actual, tasa del plan y, por cada plazo (6, 12, 18, 24, 36 meses), mensualidad, intereses totales y ahorro contra la tasa de la tarjeta.',
+  {
+    accountId: z.string().nullish().describe('Tarjeta, ej. ACC-003. Si se omite se usa la primera tarjeta del cliente'),
+  },
+  async (args) => jsonResult(await tools.getCardRestructureOptions(args)),
+);
+
+server.tool(
+  'restructure_card_debt',
+  'Aplica la reestructura del saldo de la tarjeta al plazo elegido (simulada). Requiere confirmación previa del usuario desde el botón "Aplicar plan".',
+  {
+    accountId: z.string().nullish().describe('Tarjeta, ej. ACC-003'),
+    months: z.number().describe('Plazo elegido: 6, 12, 18, 24 o 36'),
+    confirmed: z.boolean().nullish().describe('Lo establece el sistema cuando el usuario confirma desde el botón; no lo inventes'),
+  },
+  async (args) => jsonResult(await tools.restructureCardDebt(args)),
+);
+
+server.tool(
   'get_portfolio',
   'Portafolio bursátil del cliente en USD: posiciones (AAPL, AMZN, MSFT, NVDA), valor total, variación del día y distribución.',
   {},

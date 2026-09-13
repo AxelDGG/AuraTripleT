@@ -39,7 +39,7 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
                                        ┌──────────────────────┐
                                        │ @norte/mcp-server     │
                                        │ banorte-banking       │
-                                       │ 14 herramientas       │
+                                       │ 16 herramientas       │
                                        │ (datos mock)          │
                                        └──────────────────────┘
 ```
@@ -48,14 +48,15 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
    ejecutando 12 herramientas MCP en paralelo: la misma fuente de verdad que usa el agente.
 2. Cada solicitud a Norte AI va a `POST /api/chat` (Server-Sent Events). El agente expone las
    herramientas MCP al LLM (`openai/gpt-oss-120b` en Groq), transmite cada tool call en vivo y
-   termina con una **especificación de UI en JSON** que el renderer convierte en DOM seguro.
+   termina con una **superficie Norte A2UI** (componentes + modelo de datos) que viaja por partes: esqueleto con el
+   primer tool call, componentes en chunks, y patches sobre la superficie activa. Ver [A2UI.md](A2UI.md).
 3. Todo el DOM generado se construye con `createElement`/`textContent` — nunca `innerHTML` con
    contenido del modelo.
 4. El cliente MCP (`apps/api/src/mcp-client.js`) lanza el servidor como subproceso usando la ruta que
    exporta el paquete `@norte/mcp-server` (`SERVER_PATH`), así la API no depende de la estructura de
    carpetas del servidor.
 5. El LLM es un **proveedor intercambiable** (`apps/api/src/providers/`, `LLM_PROVIDER`), la salida del
-   modelo se **normaliza con el contrato** `@norte/a2ui-schema` antes de emitir `ui`, y las tools del
+   modelo se **normaliza con el contrato** `@norte/a2ui-schema` (árbol → lista de adyacencia, enums acotados) antes de emitir `a2ui`/`ui`, y las tools del
    MCP trabajan sobre un **repositorio de datos** (`BANK_DATA_SOURCE`: `memory` hoy, `tiger` después).
 
 ### Herramientas MCP
@@ -69,14 +70,17 @@ renderiza al instante en un panel lateral: tarjetas, KPIs, gráficas, tablas, fo
 | `get_exchange_rates` · `get_beneficiaries` | Divisas y beneficiarios SPEI |
 | `list_credit_products` · `simulate_credit` | Catálogo y simulación con amortización real |
 | `transfer_funds` | Transferencia SPEI simulada (requiere confirmación en código) |
+| `get_card_restructure_options` · `restructure_card_debt` | Plan de pagos fijos para el saldo de la tarjeta: opciones por plazo y aplicación (requiere el evento `confirm_restructure`) |
 | `get_portfolio` | Posiciones bursátiles (AAPL, AMZN, MSFT, NVDA), total y distribución |
 | `get_watchlist` | Acciones en seguimiento con sparklines (`most_viewed` / `gain` / `lose`) |
 | `get_portfolio_performance` | Series históricas deterministas para 1D/1W/1M/6M/1Y |
 
-### Componentes de UI generativos
+### Componentes de UI generativos (catálogo Norte A2UI v2)
 
-`header`, `kpi_grid`, `balance_cards`, `chart`, `table`, `transaction_list`,
-`form` (interactivo, reenvía al agente), `alert`, `progress`, `text`.
+Layout: `Stack`, `Row`, `Grid`, `Card`, `Section`, `Tabs`, `Divider`, `List`. Dominio: `Header`, `Kpi`,
+`AccountCard`, `Chart`, `Table`, `TransactionList`, `Alert`, `Progress`, `Text`. Controles ligados al
+`dataModel`: `Slider`, `Select`, `ChoiceChips`, `TextField`, `Toggle`. Acciones: `Button`, `Form`.
+Los tipos v1 (`header`, `kpi_grid`, `balance_cards`…) se elevan automáticamente al catálogo v2.
 
 ### Gráficas
 
@@ -90,7 +94,7 @@ vocabulario y sus convenciones visuales están portados a la capa vanilla en
 funnel y heatmap. La paleta vive en `css/tokens.css` como `--chart-1..8`, `--chart-grid` y
 `--chart-track`, los mismos nombres que usa Bklit.
 
-El catálogo de `packages/a2ui-schema/src/catalog.js` es la única fuente de verdad: de ahí
+El catálogo de `packages/a2ui-schema/src/core/catalog-v2.js` (componentes) y `src/catalog.js` (gráficas) es la única fuente de verdad: de ahí
 salen tanto el esquema que valida la respuesta del modelo como la sección del prompt que le
 explica cuándo usar cada gráfica.
 
@@ -119,8 +123,8 @@ consumiendo este mismo backend (`/api/dashboard`, `/api/simulate-credit` y el st
 npm test               # corre los tests de todos los workspaces
 ```
 
-77 pruebas en cuatro workspaces: contrato Norte UI Spec (14), reglas de negocio y repositorio en
-memoria (30, incluida una de transferencias concurrentes), y en la API (33) el loop del agente con proveedor falso + MCP real, el proveedor Groq
+167 pruebas en cuatro workspaces: contrato v1 + núcleo A2UI + mensajes + sincronía (48), reglas de negocio y repositorio en
+memoria (35, incluidas transferencias concurrentes y reestructura), y en la API (84) el loop del agente con proveedor falso + MCP real (esqueleto, chunks, patch, acciones tipadas), el proveedor Groq
 con fetch falso (reintentos 429, rescate de `failed_generation`), las rutas HTTP con el stream SSE de
 `/api/chat`, y la integración MCP de extremo a extremo (cliente real → servidor stdio → herramientas).
 
@@ -130,30 +134,37 @@ con fetch falso (reintentos 429, rescate de `failed_generation`), las rutas HTTP
 apps/api/                      @norte/api
   src/index.js                 Arranque: carga el .env de la raíz, listen, precalienta MCP
   src/app.js                   createApp(): middleware + rutas, sin puerto (así se prueba)
-  src/routes/                  health · dashboard · credit · chat (SSE)
+  src/routes/                  health · auth · a2ui (catálogo) · dashboard · customer · overview · credit · chat + action (SSE) · history · voice
   src/middleware/              security (CORS + CSP) · rate-limit · error-handler
-  src/agent.js                 Loop de tool-calling con proveedor inyectable y SYSTEM_PROMPT
-  src/providers/               groq.js (reintentos, timeout, rescate de failed_generation) · index.js (LLM_PROVIDER)
-  src/ui-spec.js               Parsea y normaliza la respuesta del modelo con @norte/a2ui-schema
+  src/agent.js                 Loop de tool-calling con proveedor inyectable, prompt A2UI, esqueleto/chunks/patch
+  src/a2ui-stream.js           Cómo se transmite una superficie por SSE
+  src/actions.js               Eventos tipados y autorización de herramientas con dinero
+  src/providers/               groq.js (reintentos, timeout, rescate de failed_generation) · gemini.js (generateContent, traducción OpenAI↔Gemini) · index.js (LLM_PROVIDER)
+  src/ui-spec.js               Parsea la respuesta del modelo: superficie (árbol → plano) o patch
   src/mcp-client.js            Cliente MCP (subproceso) con reconexión
   tests/                       agent · routes · providers-groq · ui-spec · mcp (integración e2e)
 apps/web/public/               @norte/web
-  index.html                   Dashboard (sidebar, topbar, vistas, panel de IA)
-  css/                         tokens · layout · components · chart · ai-panel
-  js/                          i18n · icons · api · voice · chart · dashboard · views · ai-panel · modals · app
-  renderer.js                  Renderer de la UI generativa (tema oscuro)
+  login.html                   Acceso (/login): usuario y contraseña contra /api/auth/login
+  inicio.html                  Portada de banca en línea (/ y /inicio): saldo, accesos, movimientos, alertas
+  index.html                   Asistente (/asistente): sugerencias, lienzo generativo y riel de historial
+  css/                         tokens · portal · auth · shell · suggest · rail · generated
+  js/                          session · login · inicio · app · agent · history · suggest · ui · api · voice · i18n · icons
+  js/a2ui-web.js               Renderer A2UI (DOM reactivo por rutas del dataModel, 24 componentes)
+  renderer.js                  Renderer v1 (miniaturas del historial)
 packages/mcp-server/           @norte/mcp-server
   src/index.js                 Exporta SERVER_PATH, createBankingTools y los repositorios
-  src/server.js                Servidor MCP (stdio) con 14 herramientas validadas con zod
+  src/server.js                Servidor MCP (stdio) con 16 herramientas validadas con zod
   src/tools.js                 createBankingTools(repo): reglas de negocio puras
   src/repositories/            memory.js (seeds) · index.js (BANK_DATA_SOURCE); tiger pendiente
   src/data/mockData.js         Cliente, cuentas, movimientos, inversiones, divisas, créditos
   src/data/marketData.js       Posiciones, watchlist y generador determinista de series
   tests/                       tools · repositories
 packages/a2ui-schema/          @norte/a2ui-schema
-  src/catalog.js               Los 10 componentes y el bloque del prompt
-  src/schemas.js               Esquemas zod tolerantes por componente
-  src/index.js                 normalizeUiSpec / normalizeComponent
+  src/core/                    Núcleo A2UI sin dependencias: pointer · binding · functions · catalog-v2 · flatten · compat · runtime
+  src/messages.js              Mensajes A2UI (zod), normalizeAgentReply, parseUserAction
+  src/catalog.js · schemas.js  Catálogo de gráficas y esquemas v1 (normalización de la parte literal)
+  src/index.js                 Un solo punto de entrada para API y tests
+scripts/sync-a2ui-core.js      Copia el núcleo a apps/mobile/src/a2ui/core (test de sincronía)
 ```
 
 ## Datos de prueba

@@ -39,6 +39,8 @@
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.05em;
+  /* El regreso a la banca en línea es un <a>: sin esto llegaría subrayado. */
+  text-decoration: none;
   transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 .top-link:hover, .top-exit:hover { background: rgba(255, 255, 255, 0.16); }

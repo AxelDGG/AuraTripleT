@@ -35,3 +35,26 @@ test('parseUiJson devuelve null ante contenido inválido', () => {
   assert.equal(parseUiJson('{"roto": '), null);
   assert.equal(parseUiJson('[1,2,3]'), null);
 });
+
+// ---------- Norte A2UI v2 ----------
+import { parseAgentReply } from '../src/ui-spec.js';
+
+test('parseAgentReply devuelve una superficie aplanada con proyección v1', () => {
+  const reply = parseAgentReply('```json\n{"message":"m","title":"T","dataModel":{"n":1},"ui":[{"component":"Kpi","label":"a","value":{"path":"/n"}}]}\n```', { surfaceId: 'fixed' });
+  assert.equal(reply.kind, 'surface');
+  assert.equal(reply.surface.surfaceId, 'fixed');
+  assert.deepEqual(reply.surface.components.map((c) => c.component), ['Stack', 'Kpi']);
+  assert.equal(reply.ui[0].items[0].value, '1');
+});
+
+test('parseAgentReply acepta un patch solo sobre la superficie activa', () => {
+  const raw = '{"message":"m","surfaceId":"s1","updates":[{"path":"/a","value":2}]}';
+  assert.equal(parseAgentReply(raw, { activeSurfaceId: 's1' }).kind, 'patch');
+  assert.equal(parseAgentReply(raw, { activeSurfaceId: 'otra' }).kind, 'surface');
+});
+
+test('parseAgentReply devuelve null ante contenido inválido', () => {
+  assert.equal(parseAgentReply(''), null);
+  assert.equal(parseAgentReply('no json'), null);
+  assert.equal(parseAgentReply('{"foo":1}'), null);
+});

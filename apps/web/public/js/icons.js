@@ -64,6 +64,28 @@
 
     convAI: S('<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3Z"/><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3Z"/>'),
     botAI: S('<rect x="4.5" y="6.5" width="15" height="11" rx="3.5"/><rect x="3" y="10.5" width="1.6" height="4" rx="0.8"/><rect x="19.4" y="10.5" width="1.6" height="4" rx="0.8"/><path d="M12 6.5V3.8"/><circle cx="12" cy="3.3" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="11.5" r="1.5"/><circle cx="15" cy="11.5" r="1.5"/><path d="M9.5 14.7h5"/>'),
+
+    // Login y sesion
+    user: S('<circle cx="12" cy="8.2" r="3.6"/><path d="M4.8 20c0-3.6 3.2-5.8 7.2-5.8s7.2 2.2 7.2 5.8"/>'),
+    lock: S('<rect x="4.5" y="10.2" width="15" height="9.8" rx="2.4"/><path d="M8 10.2V7.6a4 4 0 0 1 8 0v2.6"/>'),
+    eye: S('<path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>'),
+    eyeOff: S('<path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3 3.9M6.3 7.1A17 17 0 0 0 2.5 12s3.5 7 9.5 7a9.4 9.4 0 0 0 3.8-.8"/><path d="M10 10a2.8 2.8 0 0 0 4 4"/><path d="m3.5 3.5 17 17"/>'),
+    idCard: S('<rect x="2.8" y="5" width="18.4" height="14" rx="2.5"/><circle cx="8.6" cy="11" r="2"/><path d="M5.4 16.2c.5-1.4 1.7-2.2 3.2-2.2s2.7.8 3.2 2.2M14.6 10h4M14.6 13.4h4"/>'),
+
+    // Portada de banca en linea
+    transfer: S('<path d="M4 8.5h13M13.8 5 17.3 8.5 13.8 12"/><path d="M20 15.5H7M10.2 12l-3.5 3.5L10.2 19"/>'),
+    receipt: S('<path d="M5.5 3.5h13v17l-2.2-1.5-2.2 1.5-2.1-1.5-2.2 1.5-2.1-1.5-2.2 1.5v-17Z"/><path d="M9 8.5h6M9 12.4h6"/>'),
+    smartphone: S('<rect x="6.5" y="2.8" width="11" height="18.4" rx="2.6"/><path d="M10.6 5.6h2.8M12 18.3h.01"/>'),
+    cash: S('<rect x="2.8" y="6" width="18.4" height="12" rx="2.4"/><circle cx="12" cy="12" r="2.6"/><path d="M6.2 12h.01M17.8 12h.01"/>'),
+    dots: S('<circle cx="6" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.5" fill="currentColor" stroke="none"/>'),
+    bell: S('<path d="M6.5 10.4a5.5 5.5 0 0 1 11 0c0 3.4.9 5 1.9 6.1H4.6c1-1.1 1.9-2.7 1.9-6.1Z"/><path d="M10 19.5a2.2 2.2 0 0 0 4 0"/>'),
+    shield: S('<path d="M12 3.2 19 6v5.6c0 4.2-2.8 7.3-7 9.2-4.2-1.9-7-5-7-9.2V6l7-2.8Z"/>'),
+    star: S('<path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.6-4.8 2.6.9-5.4L4.2 9.7l5.4-.8L12 4Z"/>'),
+    plus: S('<path d="M12 5.5v13M5.5 12h13"/>'),
+    arrowRight: S('<path d="M4.5 12h14M13.5 6.5 19.5 12l-6 5.5"/>'),
+    check: S('<circle cx="12" cy="12" r="8.4"/><path d="m8.4 12.2 2.5 2.5 4.7-5"/>'),
+    alert: S('<path d="M12 4.4 21 19.6H3L12 4.4Z"/><path d="M12 10v4M12 16.8h.01"/>'),
+    info: S('<circle cx="12" cy="12" r="8.4"/><path d="M12 11v5.2M12 7.9h.01"/>'),
   };
 
   function icon(name) { return ICONS[name] ?? ''; }

@@ -8,7 +8,8 @@ export const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 export const GROQ_DEFAULT_MODEL = 'openai/gpt-oss-120b';
 
 const MAX_RATE_LIMIT_RETRIES = 4;
-const MAX_RETRY_WAIT_SECONDS = 25;
+// Tope para esperar a que se libere el límite por minuto antes de rendirse.
+const MAX_RATE_LIMIT_WAIT_SECONDS = 90;
 const DEFAULT_RETRY_WAIT_SECONDS = 8;
 const TIMEOUT_MS = 60_000;
 const TEMPERATURE = 0.3;
@@ -47,10 +48,23 @@ export function extractFailedGeneration(body) {
   return parseUiJson(candidate) ? candidate : null;
 }
 
+// "try again in 4.2s" → 5 · "try again in 29m38.5s" → 1779. Sin dato, 8 s.
 function parseRetryAfterSeconds(body) {
-  const match = body.match(/try again in ([\d.]+)s/i);
-  const seconds = match ? parseFloat(match[1]) + 1 : DEFAULT_RETRY_WAIT_SECONDS;
-  return Math.min(seconds, MAX_RETRY_WAIT_SECONDS);
+  const match = body.match(/try again in (?:(\d+)m)?([\d.]+)s/i);
+  if (!match) return DEFAULT_RETRY_WAIT_SECONDS;
+  return Number(match[1] ?? 0) * 60 + parseFloat(match[2]) + 1;
+}
+
+// Una espera de minutos (límite diario agotado) no se reintenta: se avisa con
+// claridad para que la demo no se quede "reintentando" medio minuto en vano.
+function rateLimitError(body, waitSeconds) {
+  const daily = /tokens per day/i.test(body);
+  const minutes = Math.ceil(waitSeconds / 60);
+  return new Error(
+    daily
+      ? `Groq: límite diario de tokens agotado; vuelve a intentar en ~${minutes} min o usa otra API key (Dev Tier).`
+      : `Groq: límite de velocidad; vuelve a intentar en ~${minutes} min.`,
+  );
 }
 
 async function fetchWithTimeout(fetchImpl, url, options, timeoutMs) {
@@ -95,7 +109,11 @@ export function createGroqProvider({
       }, TIMEOUT_MS);
 
       if (res.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-        const waitSeconds = parseRetryAfterSeconds(await res.text());
+        const body = await res.text();
+        const waitSeconds = parseRetryAfterSeconds(body);
+        // El límite por minuto (TPM) se libera solo: vale la pena esperar hasta
+        // un minuto. El diario o una espera de minutos, no.
+        if (/tokens per day/i.test(body) || waitSeconds > MAX_RATE_LIMIT_WAIT_SECONDS) throw rateLimitError(body, waitSeconds);
         onRateLimit?.(waitSeconds, attempt + 1);
         await sleep(waitSeconds * 1000);
         continue;
